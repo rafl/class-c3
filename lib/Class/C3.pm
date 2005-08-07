@@ -228,6 +228,29 @@ and proves useful in the I<real world>, I will most likely be supporting mod_per
 
 =back
 
+=head1 TODO
+
+=over 4
+
+=item More tests
+
+You can never have enough tests :)
+
+I need to convert the other MRO and class-precendence-list related tests from the Perl6-MetaModel (see link
+in L<SEE ALSO>). In addition, I need to add some method checks to these tests as well.
+
+=item call-next-method / NEXT:: / next METHOD
+
+I am contemplating some kind of psudeo-package which can dispatch to the next most relevant method in the 
+MRO. This should not be too hard to implement when the time comes.
+
+=item recalculateMRO
+
+This being Perl, it would be remiss of me to force people to close thier classes at runtime. So I need to 
+develop a means for recalculating the MRO for a given class. 
+
+=back
+
 =head1 SEE ALSO
 
 =head2 The original Dylan paper
