@@ -11,6 +11,7 @@ t/03_MRO.t
 t/04_MRO.t
 t/05_MRO.t
 t/10_Inconsistent_hierarchy.t
+t/20_reinitialize.t
 t/pod.t
 t/pod_coverage.t
 t/lib/A.pm

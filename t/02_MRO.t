@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 11;
+use Test::More tests => 15;
 
 BEGIN {
     use_ok('Class::C3');
@@ -121,5 +121,14 @@ is(Test::A->can('C_or_D')->(), 'Test::C', '... can got the expected method outpu
 
 is(Test::A->C_or_E, 'Test::C', '... got the expected method output');
 is(Test::A->can('C_or_E')->(), 'Test::C', '... can got the expected method output');
+
+# remove the C3
+Class::C3::uninitialize();
+
+is(Test::A->C_or_D, 'Test::D', '...  old method resolution has been restored');
+is(Test::A->can('C_or_D')->(), 'Test::D', '...  old can(method) resolution has been restored');
+
+is(Test::A->C_or_E, 'Test::E', '...  old method resolution has been restored');
+is(Test::A->can('C_or_E')->(), 'Test::E', '...  old can(method) resolution has been restored');
 
     

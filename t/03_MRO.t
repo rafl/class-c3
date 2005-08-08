@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 5;
+use Test::More tests => 8;
 
 BEGIN {
     use_ok('Class::C3');
@@ -107,3 +107,9 @@ is(Test::A->O_or_F, 'Test::F', '... got the right method dispatch');
 # would actually call Test::D before Test::C and Test::D is a
 # subclass of Test::C 
 is(Test::A->C_or_D, 'Test::C', '... got the right method dispatch');    
+
+Class::C3::uninitialize();
+
+is(Test::A->O_or_D, 'Test::O', '... old dispatch order is restored');    
+is(Test::A->O_or_F, 'Test::O', '... old dispatch order is restored');   
+is(Test::A->C_or_D, 'Test::D', '... old dispatch order is restored');   

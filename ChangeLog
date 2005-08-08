@@ -1,10 +1,19 @@
 Revision history for Perl extension Class::C3.
 
-0.02 - Sun, Aug 7, 2005
-    - code refactoring and comments added
+0.02 - Mon, Aug 8, 2005
+    - code refactoring
+        - many comments added
     - added many more tests 
+        - most of the tests from Perl6::MetaModel moved over
+        - tested loading modules with `use` as well as the 
+          inline package definition
     - added optional 'c3' pragma
+        - this is not installed and can be found in opt/
+    - added `uninitialize` function to remove C3 dispatch ordering 
+        - added tests for this
+    - added `reinitialize` function to reload C3 dispatch ordering     
+        - added tests for this
 
 0.01 - Sun, Aug 7, 2005
     - initial release of module
-    - some code and test based on previous Perl6::MetaModel work
+    - some code and tests based on previous Perl6::MetaModel work

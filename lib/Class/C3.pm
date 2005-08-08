@@ -23,9 +23,8 @@ our $VERSION = '0.02';
 #
 my %MRO;
 
-# use this for debugging ...
+# use these for debugging ...
 sub _dump_MRO_table { %MRO }
-
 our $TURN_OFF_C3 = 0;
 
 sub import {
@@ -56,6 +55,19 @@ sub initialize {
     return unless keys %MRO;
     _calculate_method_dispatch_tables();
     _apply_method_dispatch_tables();
+}
+
+sub uninitialize {
+    # why bother if we don't have anything ...
+    return unless keys %MRO;    
+    _remove_method_dispatch_tables();    
+}
+
+sub reinitialize {
+    uninitialize();
+    # clean up the %MRO before we re-initialize
+    $MRO{$_} = undef foreach keys %MRO;
+    initialize();
 }
 
 ## functions for applying C3 to classes
@@ -102,6 +114,20 @@ sub _apply_method_dispatch_table {
     foreach my $method (keys %{$MRO{$class}->{methods}}) {
         *{"${class}::$method"} = $MRO{$class}->{methods}->{$method}->{code};
     }    
+}
+
+sub _remove_method_dispatch_tables {
+    foreach my $class (keys %MRO) {
+        _remove_method_dispatch_table($class);
+    }       
+}
+
+sub _remove_method_dispatch_table {
+    my $class = shift;
+    no strict 'refs';
+    foreach my $method (keys %{$MRO{$class}->{methods}}) {
+        delete ${"${class}::"}{$method};
+    }   
 }
 
 ## functions for calculating C3 MRO
@@ -273,9 +299,20 @@ This can be used to initalize the C3 method dispatch tables. You need to call th
 under mod_perl, or in any other environment which does not run the INIT phase of the perl compiler.
 
 NOTE: 
-This can B<not> be used to re-load the dispatch tables for all classes. This is because it does not first
-return the classes to their virginal state, which would need to happen in order for the dispatch tables
-to be properly reloaded.
+This can B<not> be used to re-load the dispatch tables for all classes. Use C<reinitialize> for that.
+
+=item B<uninitialize>
+
+Calling this function results in the removal of all cached methods, and the restoration of the old Perl 5
+style dispatch order (depth-first, left-to-right). 
+
+=item B<reinitialize>
+
+This effectively calls C<uninitialize> followed by C<initialize> the result of which is a reloading of
+B<all> the calculated C3 dispatch tables. 
+
+It should be noted that if you have a large class library, this could potentially be a rather costly 
+operation.
 
 =back
 
@@ -302,14 +339,16 @@ next most appropriate method in the MRO.
 
 It is the author's opinion that changing C<@ISA> at runtime is pure insanity anyway. However, people
 do it, so I must caveat. Any changes to the C<@ISA> will not be reflected in the MRO calculated by this
-module, and therefor probably won't even show up. I am considering some kind of C<recalculateMRO> function
-which can be used to recalculate the MRO on demand at runtime, but that is still off in the future.
+module, and therefor probably won't even show up. If you do this, you will need to call C<reinitialize> 
+in order to recalulate B<all> method dispatch tables. See the C<reinitialize> documentation and an example
+in F<t/20_reinitialize.t> for more information.
 
 =item Adding/deleting methods from class symbol tables.
 
 This module calculates the MRO for each requested class during the INIT phase by interogatting the symbol
 tables of said classes. So any symbol table manipulation which takes place after our INIT phase is run will
-not be reflected in the calculated MRO.
+not be reflected in the calculated MRO. Just as with changing the C<@ISA>, you will need to call 
+C<reinitialize> for any changes you make to take effect.
 
 =back
 
@@ -321,18 +360,10 @@ not be reflected in the calculated MRO.
 
 You can never have enough tests :)
 
-I need to convert the other MRO and class-precendence-list related tests from the Perl6-MetaModel (see link
-in L<SEE ALSO>). In addition, I need to add some method checks to these tests as well.
-
 =item call-next-method / NEXT:: / next METHOD
 
 I am contemplating some kind of psudeo-package which can dispatch to the next most relevant method in the 
 MRO. This should not be too hard to implement when the time comes.
-
-=item recalculateMRO
-
-This being Perl, it would be remiss of me to force people to close thier classes at runtime. So I need to 
-develop a means for recalculating the MRO for a given class. 
 
 =back
 
