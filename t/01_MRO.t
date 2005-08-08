@@ -7,7 +7,22 @@ use Test::More tests => 5;
 
 BEGIN {
     use_ok('Class::C3');
+    # uncomment this line, and re-run the
+    # test to see the normal p5 dispatch order
+    #$Class::C3::TURN_OFF_C3 = 1;    
 }
+
+=pod
+
+This tests the classic diamond inheritence pattern.
+
+   <A>
+  /   \
+<B>   <C>
+  \   /
+   <D>
+
+=cut
 
 {
     package Diamond_A;

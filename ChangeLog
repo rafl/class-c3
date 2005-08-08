@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::C3.
 
+0.02 - Sun, Aug 7, 2005
+    - code refactoring and comments added
+
 0.01 - Sun, Aug 7, 2005
     - initial release of module
     - some code and test based on previous Perl6::MetaModel work

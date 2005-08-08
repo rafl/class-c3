@@ -3,13 +3,28 @@
 use strict;
 use warnings;
 
-use Test::More tests => 15;
+use Test::More tests => 11;
 
 BEGIN {
     use_ok('Class::C3');
+    # uncomment this line, and re-run the
+    # test to see the normal p5 dispatch order
+    #$Class::C3::TURN_OFF_C3 = 1;    
 }
 
 =pod
+
+This example is take from: http://www.python.org/2.3/mro.html
+
+"My first example"
+class O: pass
+class F(O): pass
+class E(O): pass
+class D(O): pass
+class C(D,F): pass
+class B(D,E): pass
+class A(B,C): pass
+
 
                           6
                          ---
@@ -104,13 +119,7 @@ is_deeply(
 is(Test::A->C_or_D, 'Test::C', '... got the expected method output');
 is(Test::A->can('C_or_D')->(), 'Test::C', '... can got the expected method output');
 
-is(Test::B->C_or_D, 'Test::D', '... got the expected method output');
-is(Test::B->can('C_or_D')->(), 'Test::D', '... can got the expected method output');
-
 is(Test::A->C_or_E, 'Test::C', '... got the expected method output');
 is(Test::A->can('C_or_E')->(), 'Test::C', '... can got the expected method output');
-
-is(Test::B->C_or_E, 'Test::E', '... got the expected method output');
-is(Test::B->can('C_or_E')->(), 'Test::E', '... can got the expected method output');
 
     
