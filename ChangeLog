@@ -2,6 +2,8 @@ Revision history for Perl extension Class::C3.
 
 0.02 - Sun, Aug 7, 2005
     - code refactoring and comments added
+    - added many more tests 
+    - added optional 'c3' pragma
 
 0.01 - Sun, Aug 7, 2005
     - initial release of module
