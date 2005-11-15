@@ -6,7 +6,7 @@ use warnings;
 
 use Scalar::Util 'blessed';
 
-our $VERSION = '0.02';
+our $VERSION = '0.05';
 
 # this is our global stash of both 
 # MRO's and method dispatch tables
@@ -55,12 +55,14 @@ sub initialize {
     return unless keys %MRO;
     _calculate_method_dispatch_tables();
     _apply_method_dispatch_tables();
+    %next::METHOD_CACHE = ();
 }
 
 sub uninitialize {
     # why bother if we don't have anything ...
     return unless keys %MRO;    
     _remove_method_dispatch_tables();    
+    %next::METHOD_CACHE = ();
 }
 
 sub reinitialize {
@@ -177,6 +179,46 @@ sub calculateMRO {
         (map { [ calculateMRO($_) ] } @{"${class}::ISA"}), # the MRO of all the superclasses
         [ @{"${class}::ISA"} ]                             # a list of all the superclasses    
     );
+}
+
+package  # hide me from PAUSE
+    next; 
+
+use strict;
+use warnings;
+
+use Scalar::Util 'blessed';
+
+our $VERSION = '0.03';
+
+our %METHOD_CACHE;
+
+sub method {
+    my @label    = (split '::', (caller(1))[3]);
+    my $label    = pop @label;
+    my $caller   = join '::' => @label;    
+    my $self     = $_[0];
+    my $class    = blessed($self) || $self;
+    
+    goto &{ $METHOD_CACHE{"$class|$caller|$label"} ||= do {
+
+      my @MRO = Class::C3::calculateMRO($class);
+
+      my $current;
+      while ($current = shift @MRO) {
+          last if $caller eq $current;
+      }
+
+      no strict 'refs';
+      my $found;
+      foreach my $class (@MRO) {
+          last if (defined ($found = *{$class . '::' . $label}{CODE}));
+      }
+
+      die "No next::method '$label' found for $self" unless $found;
+
+      $found;
+    } };
 }
 
 1;
@@ -316,6 +358,47 @@ operation.
 
 =back
 
+=head1 METHOD REDISPATCHING
+
+It is always useful to be able to re-dispatch your method call to the "next most applicable method". This 
+module provides a pseudo package along the lines of C<SUPER::> or C<NEXT::> which will re-dispatch the 
+method along the C3 linearization. This is best show with an examples.
+
+  # a classic diamond MI pattern ...
+     <A>
+    /   \
+  <B>   <C>
+    \   /
+     <D>
+  
+  package A;
+  use c3; 
+  sub foo { 'A::foo' }       
+ 
+  package B;
+  use base 'A'; 
+  use c3;     
+  sub foo { 'B::foo => ' . (shift)->next::method() }       
+ 
+  package B;
+  use base 'A'; 
+  use c3;    
+  sub foo { 'C::foo => ' . (shift)->next::method() }   
+ 
+  package D;
+  use base ('B', 'C'); 
+  use c3; 
+  sub foo { 'D::foo => ' . (shift)->next::method() }   
+  
+  print D->foo; # prints out "D::foo => B::foo => C::foo => A::foo"
+
+A few things to note. First, we do not require you to add on the method name to the C<next::method> 
+call (this is unlike C<NEXT::> and C<SUPER::> which do require that). This helps to enforce the rule 
+that you cannot dispatch to a method of a different name (this is how C<NEXT::> behaves as well). 
+
+The next thing to keep in mind is that you will need to pass all arguments to C<next::method> it can 
+not automatically use the current C<@_>. 
+
 =head1 CAVEATS
 
 Let me first say, this is an experimental module, and so it should not be used for anything other 
@@ -332,8 +415,8 @@ And now, onto the caveats.
 
 The idea of C<SUPER::> under multiple inheritence is ambigious, and generally not recomended anyway.
 However, it's use in conjuntion with this module is very much not recommended, and in fact very 
-discouraged. In the future I plan to support a C<NEXT::> style interface to be used to move to the 
-next most appropriate method in the MRO.
+discouraged. The recommended approach is to instead use the supplied C<next::method> feature, see
+more details on it's usage above.
 
 =item Changing C<@ISA>.
 
@@ -360,12 +443,19 @@ C<reinitialize> for any changes you make to take effect.
 
 You can never have enough tests :)
 
-=item call-next-method / NEXT:: / next METHOD
-
-I am contemplating some kind of psudeo-package which can dispatch to the next most relevant method in the 
-MRO. This should not be too hard to implement when the time comes.
-
 =back
+
+=head1 CODE COVERAGE
+
+I use B<Devel::Cover> to test the code coverage of my tests, below is the B<Devel::Cover> report on this module's test suite.
+
+ ---------------------------- ------ ------ ------ ------ ------ ------ ------
+ File                           stmt   bran   cond    sub    pod   time  total
+ ---------------------------- ------ ------ ------ ------ ------ ------ ------
+ Class/C3.pm                    99.2   93.3   66.7   96.0  100.0   92.8   96.3
+ ---------------------------- ------ ------ ------ ------ ------ ------ ------
+ Total                          99.2   93.3   66.7   96.0  100.0   92.8   96.3
+ ---------------------------- ------ ------ ------ ------ ------ ------ ------
 
 =head1 SEE ALSO
 
