@@ -1,5 +1,11 @@
 Revision history for Perl extension Class::C3.
 
+0.06 - 
+    - added Sub::Name to dependencies (even though it is
+      just for the tests)
+    - removed OS X resource fork which slipped into the tar.gz
+    - improved error reporting for Inconsistent Hierarchies
+
 0.05 - Mon, Nov 14, 2005
     - added caching to next::method, courtesy of quicksilver
       and mst over at #dbi-class

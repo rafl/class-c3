@@ -9,6 +9,8 @@ BEGIN {
     use_ok('Class::C3');
 }
 
+use Sub::Name;
+
 {
 
     {
@@ -37,8 +39,6 @@ BEGIN {
         use Class::C3;
         our @ISA = ('Foo');
     }
-    
-    use Sub::Name;
     
     my $m = sub { (shift)->next::method() };
     subname('Bar::bar', $m);

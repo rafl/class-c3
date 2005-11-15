@@ -6,7 +6,7 @@ use warnings;
 
 use Scalar::Util 'blessed';
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 # this is our global stash of both 
 # MRO's and method dispatch tables
@@ -139,12 +139,14 @@ sub _remove_method_dispatch_table {
 #   http://www.python.org/2.3/mro.html
 sub _merge {                
     my (@seqs) = @_;
+    my $class_being_merged = $seqs[0]->[0];
     my @res; 
     while (1) {
         # remove all empty seqences
         my @nonemptyseqs = (map { (@{$_} ? $_ : ()) } @seqs);
         # return the list if we have no more no-empty sequences
         return @res if not @nonemptyseqs; 
+        my $reject;
         my $cand; # a canidate ..
         foreach my $seq (@nonemptyseqs) {
             $cand = $seq->[0]; # get the head of the list
@@ -159,9 +161,12 @@ sub _merge {
                 $nothead++ && last if exists $in_tail{$cand};      
             }
             last unless $nothead; # leave the loop with our canidate ...
+            $reject = $cand;
             $cand = undef;        # otherwise, reject it ...
         }
-        die "Inconsistent hierarchy" if not $cand;
+        die "Inconsistent hierarchy found while merging '$class_being_merged':\n\t" .
+            "current merge results [\n\t\t" . (join ",\n\t\t" => @res) . "\n\t]\n\t" .
+            "mergeing failed on '$reject'\n" if not $cand;
         push @res => $cand;
         # now loop through our non-empties and pop 
         # off the head if it matches our canidate
