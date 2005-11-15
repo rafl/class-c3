@@ -12,6 +12,7 @@ t/04_MRO.t
 t/05_MRO.t
 t/10_Inconsistent_hierarchy.t
 t/20_reinitialize.t
+t/21_C3_with_overload.t
 t/30_next_method.t
 t/31_next_method_skip.t
 t/32_next_method_edge_cases.t

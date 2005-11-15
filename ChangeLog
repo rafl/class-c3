@@ -5,6 +5,9 @@ Revision history for Perl extension Class::C3.
       just for the tests)
     - removed OS X resource fork which slipped into the tar.gz
     - improved error reporting for Inconsistent Hierarchies
+    - added feature to insure that Overload "fallback" setting
+      is properly inherited
+        - added test for this
 
 0.05 - Mon, Nov 14, 2005
     - added caching to next::method, courtesy of quicksilver
