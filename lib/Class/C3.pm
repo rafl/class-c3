@@ -6,7 +6,7 @@ use warnings;
 
 use Scalar::Util 'blessed';
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 # this is our global stash of both 
 # MRO's and method dispatch tables
@@ -22,7 +22,7 @@ our $VERSION = '0.06';
 #      has_overload_fallback => (1 | 0)
 #   }
 #
-my %MRO;
+our %MRO;
 
 # use these for debugging ...
 sub _dump_MRO_table { %MRO }
@@ -36,7 +36,7 @@ sub import {
     return if $TURN_OFF_C3;
     # make a note to calculate $class 
     # during INIT phase
-    $MRO{$class} = undef;
+    $MRO{$class} = undef unless exists $MRO{$class};
 }
 
 ## initializers
@@ -205,7 +205,7 @@ use warnings;
 
 use Scalar::Util 'blessed';
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 our %METHOD_CACHE;
 
@@ -228,6 +228,8 @@ sub method {
       no strict 'refs';
       my $found;
       foreach my $class (@MRO) {
+          next if (defined $Class::C3::MRO{$class} && 
+                   defined $Class::C3::MRO{$class}{methods}{$label});          
           last if (defined ($found = *{$class . '::' . $label}{CODE}));
       }
 

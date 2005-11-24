@@ -10,6 +10,7 @@ t/02_MRO.t
 t/03_MRO.t
 t/04_MRO.t
 t/05_MRO.t
+t/06_MRO.t
 t/10_Inconsistent_hierarchy.t
 t/20_reinitialize.t
 t/21_C3_with_overload.t
@@ -25,3 +26,4 @@ t/lib/C.pm
 t/lib/D.pm
 t/lib/E.pm
 t/lib/F.pm
+util/visualize_c3.pl
