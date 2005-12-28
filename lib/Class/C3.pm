@@ -139,9 +139,9 @@ sub _remove_method_dispatch_table {
     no strict 'refs';
     delete ${"${class}::"}{"()"} if $MRO{$class}->{has_overload_fallback};    
     foreach my $method (keys %{$MRO{$class}->{methods}}) {
-        delete ${"${class}::"}{$method}
-          if \&{"${class}::${method}"} eq 
-             $MRO{$class}->{methods}->{$method}->{code};        
+        ${"${class}::"}{$method}{CODE} = undef
+          if defined ${"${class}::"}{$method}{CODE} &&
+             ${"${class}::"}{$method}{CODE} eq $MRO{$class}->{methods}->{$method}->{code};        
     }   
 }
 
@@ -218,6 +218,7 @@ sub method {
         last unless $method_caller eq '(eval)';
     }
     my @label    = (split '::', $method_caller);    
+    #my @label    = (split '::', (caller(1))[3]);
     my $label    = pop @label;
     my $caller   = join '::' => @label;    
     my $self     = $_[0];
