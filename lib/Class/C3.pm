@@ -6,7 +6,7 @@ use warnings;
 
 use Scalar::Util 'blessed';
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 # this is our global stash of both 
 # MRO's and method dispatch tables
@@ -139,7 +139,9 @@ sub _remove_method_dispatch_table {
     no strict 'refs';
     delete ${"${class}::"}{"()"} if $MRO{$class}->{has_overload_fallback};    
     foreach my $method (keys %{$MRO{$class}->{methods}}) {
-        delete ${"${class}::"}{$method};
+        delete ${"${class}::"}{$method}
+          if \&{"${class}::${method}"} eq 
+             $MRO{$class}->{methods}->{$method}->{code};        
     }   
 }
 
@@ -169,7 +171,7 @@ sub _merge {
                 # jump out as soon as we find one matching
                 # there is no reason not too. However, if 
                 # we find one, then just remove the '&& last'
-                $nothead++ && last if exists $in_tail{$cand};      
+                ++$nothead && last if exists $in_tail{$cand};      
             }
             last unless $nothead; # leave the loop with our canidate ...
             $reject = $cand;
@@ -205,12 +207,17 @@ use warnings;
 
 use Scalar::Util 'blessed';
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 our %METHOD_CACHE;
 
 sub method {
-    my @label    = (split '::', (caller(1))[3]);
+    my $level = 1;
+    my $method_caller;
+    while ($method_caller = (caller($level++))[3]) {
+        last unless $method_caller eq '(eval)';
+    }
+    my @label    = (split '::', $method_caller);    
     my $label    = pop @label;
     my $caller   = join '::' => @label;    
     my $self     = $_[0];
@@ -465,14 +472,15 @@ You can never have enough tests :)
 
 =head1 CODE COVERAGE
 
-I use B<Devel::Cover> to test the code coverage of my tests, below is the B<Devel::Cover> report on this module's test suite.
+I use B<Devel::Cover> to test the code coverage of my tests, below is the B<Devel::Cover> report on this 
+module's test suite.
 
  ---------------------------- ------ ------ ------ ------ ------ ------ ------
  File                           stmt   bran   cond    sub    pod   time  total
  ---------------------------- ------ ------ ------ ------ ------ ------ ------
- Class/C3.pm                    99.2   93.3   66.7   96.0  100.0   92.8   96.3
+ Class/C3.pm                    98.6   88.6   75.0   96.0  100.0   70.4   95.2
  ---------------------------- ------ ------ ------ ------ ------ ------ ------
- Total                          99.2   93.3   66.7   96.0  100.0   92.8   96.3
+ Total                          98.6   88.6   75.0   96.0  100.0   70.4   95.2
  ---------------------------- ------ ------ ------ ------ ------ ------ ------
 
 =head1 SEE ALSO

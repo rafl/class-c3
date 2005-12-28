@@ -1,5 +1,15 @@
 Revision history for Perl extension Class::C3.
 
+0.08 - Wed, Dec 28, 2005
+    - adjusted &_remove_method_dispatch_table to be more 
+      discriminating about what it deletes. Thanks to 
+      Matt S. Trout for this fix.
+    - tweaked &_merge to avoid un-needed looping. Thanks to 
+      Audrey Tang for this fix.
+    - added better support for calling next::method within 
+      an eval BLOCK. Thanks to Justin Guenther for this patch
+      and test.
+
 0.07 - Wed, Nov 23, 2005
     * all bugs found by, and fixes provided by Matt S. Trout *
     - fixed issue caused when module is imported more than once
