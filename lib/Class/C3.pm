@@ -139,9 +139,9 @@ sub _remove_method_dispatch_table {
     no strict 'refs';
     delete ${"${class}::"}{"()"} if $MRO{$class}->{has_overload_fallback};    
     foreach my $method (keys %{$MRO{$class}->{methods}}) {
-        ${"${class}::"}{$method}{CODE} = undef
-          if defined ${"${class}::"}{$method}{CODE} &&
-             ${"${class}::"}{$method}{CODE} eq $MRO{$class}->{methods}->{$method}->{code};        
+        delete ${"${class}::"}{$method};
+          #if defined ${"${class}::"}{$method}{CODE} &&
+          #   ${"${class}::"}{$method}{CODE} eq $MRO{$class}->{methods}->{$method}->{code};        
     }   
 }
 
