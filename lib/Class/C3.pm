@@ -6,7 +6,7 @@ use warnings;
 
 use Scalar::Util 'blessed';
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 # this is our global stash of both 
 # MRO's and method dispatch tables
@@ -530,6 +530,18 @@ module's test suite.
 =item L<http://www.call-with-current-continuation.org/eggs/c3.html>
 
 =back 
+
+=head1 ACKNOWLEGEMENTS
+
+=over 4
+
+=item Thanks to Matt S. Trout for using this module in his module L<DBIx::Class> 
+and finding many bugs and providing fixes.
+
+=item Thanks to Justin Guenther for making C<next::method> more robust by handling 
+calls inside C<eval> and anon-subs.
+
+=back
 
 =head1 AUTHOR
 

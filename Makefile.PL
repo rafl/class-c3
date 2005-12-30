@@ -7,6 +7,6 @@ WriteMakefile(
         'Test::Exception' => 0.15,
         'Scalar::Util'    => 1.10,
         'Sub::Name'       => 0,
-        'NEXT'            => 0,
+        'NEXT'            => 0,     # for tests only
 		}
 );

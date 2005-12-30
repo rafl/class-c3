@@ -1,5 +1,10 @@
 Revision history for Perl extension Class::C3.
 
+0.09 - Fri, Dec 30, 2005
+    - this is actually the proper version of 0.08, I forgot
+      to check in some modifications, and so they didn't get
+      included in my upload. 
+
 0.08 - Wed, Dec 28, 2005
     - adjusted &_remove_method_dispatch_table to be more 
       discriminating about what it deletes. Thanks to 
