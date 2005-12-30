@@ -213,12 +213,14 @@ our %METHOD_CACHE;
 
 sub method {
     my $level = 1;
-    my $method_caller;
+    my ($method_caller, $label, @label);
     while ($method_caller = (caller($level++))[3]) {
-        last unless $method_caller eq '(eval)';
+      @label = (split '::', $method_caller);
+      $label = pop @label;
+      last unless
+        $label eq '(eval)' ||
+        $label eq '__ANON__';
     }
-    my @label    = (split '::', $method_caller);    
-    my $label    = pop @label;
     my $caller   = join '::' => @label;    
     my $self     = $_[0];
     my $class    = blessed($self) || $self;

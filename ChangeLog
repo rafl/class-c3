@@ -7,8 +7,8 @@ Revision history for Perl extension Class::C3.
     - tweaked &_merge to avoid un-needed looping. Thanks to 
       Audrey Tang for this fix.
     - added better support for calling next::method within 
-      an eval BLOCK. Thanks to Justin Guenther for this patch
-      and test.
+      an eval BLOCKs and anon-subroutines. Thanks to Justin 
+      Guenther for this patch and test.
 
 0.07 - Wed, Nov 23, 2005
     * all bugs found by, and fixes provided by Matt S. Trout *
