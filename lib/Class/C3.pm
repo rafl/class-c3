@@ -6,7 +6,7 @@ use warnings;
 
 use Scalar::Util 'blessed';
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 # this is our global stash of both 
 # MRO's and method dispatch tables
@@ -549,7 +549,7 @@ Stevan Little, E<lt>stevan@iinteractive.comE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2005 by Infinity Interactive, Inc.
+Copyright 2005, 2006 by Infinity Interactive, Inc.
 
 L<http://www.iinteractive.com>
 

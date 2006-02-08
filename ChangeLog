@@ -1,5 +1,12 @@
 Revision history for Perl extension Class::C3.
 
+0.10 - Wed, Feb 8, 2006
+    - removed the Sub::Name and NEXT dependencies and 
+      made the test just skip if they are not present
+    - bumped the Scalar::Util version requirement up 
+      (the newest version tends to work the best across
+      different platforms)
+
 0.09 - Fri, Dec 30, 2005
     - this is actually the proper version of 0.08, I forgot
       to check in some modifications, and so they didn't get

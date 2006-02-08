@@ -5,8 +5,6 @@ WriteMakefile(
     'PREREQ_PM'		=> {
         'Test::More'      => 0.47,
         'Test::Exception' => 0.15,
-        'Scalar::Util'    => 1.10,
-        'Sub::Name'       => 0,
-        'NEXT'            => 0,     # for tests only
+        'Scalar::Util'    => 1.18,
 		}
 );

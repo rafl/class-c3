@@ -1,4 +1,4 @@
-Class::C3 version 0.09
+Class::C3 version 0.10
 ===========================
 
 INSTALLATION
@@ -18,7 +18,7 @@ This module requires these other modules and libraries:
 
 COPYRIGHT AND LICENCE
 
-Copyright (C) 2005 Infinity Interactive, Inc.
+Copyright (C) 2005, 2006 Infinity Interactive, Inc.
 
 http://www.iinteractive.com
 

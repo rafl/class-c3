@@ -3,10 +3,12 @@
 use strict;
 use warnings;
 
-use Test::More tests => 5;
+use Test::More;
 
-BEGIN {   
-    use_ok('Class::C3');
+BEGIN {
+    eval "use NEXT";
+    plan skip_all => "NEXT required for this test" if $@;
+    plan tests => 4;
 }
 
 {
@@ -36,7 +38,7 @@ BEGIN {
     package Baz;
     use strict;
     use warnings;    
-    use NEXT;
+    require NEXT; # load this as late as possible so we can catch the test skip
 
     use base 'Bar', 'Fuz';
     

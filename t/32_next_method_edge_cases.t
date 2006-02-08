@@ -9,8 +9,6 @@ BEGIN {
     use_ok('Class::C3');
 }
 
-use Sub::Name;
-
 {
 
     {
@@ -40,19 +38,24 @@ use Sub::Name;
         our @ISA = ('Foo');
     }
     
-    my $m = sub { (shift)->next::method() };
-    subname('Bar::bar', $m);
-    {
-        no strict 'refs';
-        *{'Bar::bar'} = $m;
-    }
-
     my $bar = Bar->new();
     isa_ok($bar, 'Bar');
-    isa_ok($bar, 'Foo');
+    isa_ok($bar, 'Foo');    
+    
+    SKIP: {    
+        eval 'use Sub::Name';
+        skip "Sub::Name is required for this test", 3 if $@;
+    
+        my $m = sub { (shift)->next::method() };
+        Sub::Name::subname('Bar::bar', $m);
+        {
+            no strict 'refs';
+            *{'Bar::bar'} = $m;
+        }
 
-    can_ok($bar, 'bar');
-    my $value = eval { $bar->bar() };
-    ok(!$@, '... calling bar() succedded') || diag $@;
-    is($value, 'Foo::bar', '... got the right return value too');
+        can_ok($bar, 'bar');
+        my $value = eval { $bar->bar() };
+        ok(!$@, '... calling bar() succedded') || diag $@;
+        is($value, 'Foo::bar', '... got the right return value too');
+    }
 }
