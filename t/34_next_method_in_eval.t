@@ -42,6 +42,8 @@ This tests the use of an eval{} block to wrap a next::method call.
     }
 }
 
+Class::C3::initialize();  
+
 like(B->foo, 
    qr/^A::foo died/, 
    'method resolved inside eval{}');

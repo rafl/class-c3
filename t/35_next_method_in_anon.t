@@ -53,6 +53,8 @@ anonymous subroutine.
     }
 }
 
+Class::C3::initialize();  
+
 is(B->foo, "B::foo => A::foo",
    'method resolved inside anonymous sub');
 

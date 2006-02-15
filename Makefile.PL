@@ -6,5 +6,6 @@ WriteMakefile(
         'Test::More'      => 0.47,
         'Test::Exception' => 0.15,
         'Scalar::Util'    => 1.18,
+        'Algorithm::C3'   => 0.01,
 		}
 );

@@ -86,6 +86,8 @@ Level 0                 0 | A |                (more specialized)
     use Class::C3;    
 }
 
+Class::C3::initialize();
+
 is_deeply(
     [ Class::C3::calculateMRO('Test::F') ],
     [ qw(Test::F Test::O) ],

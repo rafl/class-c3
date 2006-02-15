@@ -5,8 +5,9 @@ use strict;
 use warnings;
 
 use Scalar::Util 'blessed';
+use Algorithm::C3;
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 # this is our global stash of both 
 # MRO's and method dispatch tables
@@ -40,16 +41,6 @@ sub import {
 }
 
 ## initializers
-
-# NOTE:
-# this will not run under the following
-# conditions:
-#  - mod_perl
-#  - require Class::C3;
-#  - eval "use Class::C3"
-# in all those cases, you need to call 
-# the initialize() function manually
-INIT { initialize() }
 
 sub initialize {
     # why bother if we don't have anything ...
@@ -147,56 +138,12 @@ sub _remove_method_dispatch_table {
 
 ## functions for calculating C3 MRO
 
-# this function is a perl-port of the 
-# python code on this page:
-#   http://www.python.org/2.3/mro.html
-sub _merge {                
-    my (@seqs) = @_;
-    my $class_being_merged = $seqs[0]->[0];
-    my @res; 
-    while (1) {
-        # remove all empty seqences
-        my @nonemptyseqs = (map { (@{$_} ? $_ : ()) } @seqs);
-        # return the list if we have no more no-empty sequences
-        return @res if not @nonemptyseqs; 
-        my $reject;
-        my $cand; # a canidate ..
-        foreach my $seq (@nonemptyseqs) {
-            $cand = $seq->[0]; # get the head of the list
-            my $nothead;            
-            foreach my $sub_seq (@nonemptyseqs) {
-                # XXX - this is instead of the python "in"
-                my %in_tail = (map { $_ => 1 } @{$sub_seq}[ 1 .. $#{$sub_seq} ]);
-                # NOTE:
-                # jump out as soon as we find one matching
-                # there is no reason not too. However, if 
-                # we find one, then just remove the '&& last'
-                ++$nothead && last if exists $in_tail{$cand};      
-            }
-            last unless $nothead; # leave the loop with our canidate ...
-            $reject = $cand;
-            $cand = undef;        # otherwise, reject it ...
-        }
-        die "Inconsistent hierarchy found while merging '$class_being_merged':\n\t" .
-            "current merge results [\n\t\t" . (join ",\n\t\t" => @res) . "\n\t]\n\t" .
-            "mergeing failed on '$reject'\n" if not $cand;
-        push @res => $cand;
-        # now loop through our non-empties and pop 
-        # off the head if it matches our canidate
-        foreach my $seq (@nonemptyseqs) {
-            shift @{$seq} if $seq->[0] eq $cand;
-        }
-    }
-}
-
 sub calculateMRO {
     my ($class) = @_;
-    no strict 'refs';
-    return _merge(
-        [ $class ],                                        # the class we are linearizing
-        (map { [ calculateMRO($_) ] } @{"${class}::ISA"}), # the MRO of all the superclasses
-        [ @{"${class}::ISA"} ]                             # a list of all the superclasses    
-    );
+    return Algorithm::C3::merge($class, sub { 
+        no strict 'refs'; 
+        @{$_[0] . '::ISA'};
+    });
 }
 
 package  # hide me from PAUSE
@@ -286,6 +233,10 @@ Class::C3 - A pragma to use the C3 method resolution order algortihm
     #    <D>
 
     package main;
+    
+    # initializez the C3 module 
+    # (formerly called in INIT)
+    Class::C3::initialize();  
 
     print join ', ' => Class::C3::calculateMRO('Diamond_D') # prints D, B, C, A
 
@@ -296,9 +247,8 @@ Class::C3 - A pragma to use the C3 method resolution order algortihm
 
 =head1 DESCRIPTION
 
-This is currently an experimental pragma to change Perl 5's standard method resolution order 
-from depth-first left-to-right (a.k.a - pre-order) to the more sophisticated C3 method resolution
-order. 
+This is pragma to change Perl 5's standard method resolution order from depth-first left-to-right 
+(a.k.a - pre-order) to the more sophisticated C3 method resolution order. 
 
 =head2 What is C3?
 
@@ -328,11 +278,11 @@ the L<SEE ALSO> section.
 
 =head2 How does this module work?
 
-This module uses a technique similar to Perl 5's method caching. During the INIT phase, this module 
-calculates the MRO of all the classes which called C<use Class::C3>. It then gathers information from 
-the symbol tables of each of those classes, and builds a set of method aliases for the correct 
-dispatch ordering. Once all these C3-based method tables are created, it then adds the method aliases
-into the local classes symbol table. 
+This module uses a technique similar to Perl 5's method caching. When C<Class::C3::initialize> is 
+called, this module calculates the MRO of all the classes which called C<use Class::C3>. It then 
+gathers information from the symbol tables of each of those classes, and builds a set of method 
+aliases for the correct dispatch ordering. Once all these C3-based method tables are created, it 
+then adds the method aliases into the local classes symbol table. 
 
 The end result is actually classes with pre-cached method dispatch. However, this caching does not
 do well if you start changing your C<@ISA> or messing with class symbol tables, so you should consider
@@ -364,8 +314,15 @@ Given a C<$class> this will return an array of class names in the proper C3 meth
 
 =item B<initialize>
 
-This can be used to initalize the C3 method dispatch tables. You need to call this if you are running
-under mod_perl, or in any other environment which does not run the INIT phase of the perl compiler.
+This B<must be called> to initalize the C3 method dispatch tables, this module B<will not work> if 
+you do not do this. It is advised to do this as soon as possible B<after> any classes which use C3.
+
+This function used to be called automatically for you in the INIT phase of the perl compiler, but 
+that lead to warnings if this module was required at runtime. After discussion with my user base 
+(the L<DBIx::Class> folks), we decided that calling this in INIT was more of an annoyance than a 
+convience. I apologize to anyone this causes problems for (although i would very suprised if I had 
+any other users other than the L<DBIx::Class> folks). The simplest solution of course is to define 
+your own INIT method which calls this function. 
 
 NOTE: 
 This can B<not> be used to re-load the dispatch tables for all classes. Use C<reinitialize> for that.
@@ -426,15 +383,15 @@ that you cannot dispatch to a method of a different name (this is how C<NEXT::> 
 The next thing to keep in mind is that you will need to pass all arguments to C<next::method> it can 
 not automatically use the current C<@_>. 
 
+There are some caveats about using C<next::method>, see below for those.
+
 =head1 CAVEATS
 
-Let me first say, this is an experimental module, and so it should not be used for anything other 
-then other experimentation for the time being. 
+This module used to be labeled as I<experimental>, however it has now been pretty heavily tested by 
+the good folks over at L<DBIx::Class> and I am confident this module is perfectly usable for 
+whatever your needs might be. 
 
-That said, it is the authors intention to make this into a completely usable and production stable 
-module if possible. Time will tell.
-
-And now, onto the caveats.
+But there are still caveats, so here goes ...
 
 =over 4
 
@@ -455,20 +412,32 @@ in F<t/20_reinitialize.t> for more information.
 
 =item Adding/deleting methods from class symbol tables.
 
-This module calculates the MRO for each requested class during the INIT phase by interogatting the symbol
-tables of said classes. So any symbol table manipulation which takes place after our INIT phase is run will
-not be reflected in the calculated MRO. Just as with changing the C<@ISA>, you will need to call 
-C<reinitialize> for any changes you make to take effect.
+This module calculates the MRO for each requested class by interogatting the symbol tables of said classes. 
+So any symbol table manipulation which takes place after our INIT phase is run will not be reflected in 
+the calculated MRO. Just as with changing the C<@ISA>, you will need to call C<reinitialize> for any 
+changes you make to take effect.
 
-=back
+=item Calling C<next::method> from methods defined outside the class
 
-=head1 TODO
+There is an edge case when using C<next::method> from within a subroutine which was created in a different 
+module than the one it is called from. It sounds complicated, but it really isn't. Here is an example which 
+will not work correctly:
 
-=over 4
+  *Foo::foo = sub { (shift)->next::method(@_) };
 
-=item More tests
+The problem exists because the anonymous subroutine being assigned to the glob C<*Foo::foo> will show up 
+in the call stack as being called C<__ANON__> and not C<foo> as you might expect. Since C<next::method> 
+uses C<caller> to find the name of the method it was called in, it will fail in this case. 
 
-You can never have enough tests :)
+But fear not, there is a simple solution. The module C<Sub::Name> will reach into the perl internals and 
+assign a name to an anonymous subroutine for you. Simply do this:
+    
+  use Sub::Name 'subname';
+  *Foo::foo = subname 'Foo::foo' => sub { (shift)->next::method(@_) };
+
+and things will Just Work. Of course this is not always possible to do, but to be honest, I just can't 
+manage to find a workaround for it, so until someone gives me a working patch this will be a known 
+limitation of this module.
 
 =back
 

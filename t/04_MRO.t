@@ -65,6 +65,8 @@ example taken from: L<http://gauss.gwydiondylan.org/books/drm/drm_50.html>
     use base ('Intelligent', 'Humanoid');
 }
 
+Class::C3::initialize();
+
 is_deeply(
     [ c3::calculateMRO('Vulcan') ],
     [ qw(Vulcan Intelligent Sentient Humanoid BiPedal LifeForm Object) ],

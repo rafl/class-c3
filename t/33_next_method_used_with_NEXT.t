@@ -45,6 +45,8 @@ BEGIN {
     sub foo { 'Baz::foo => ' . (shift)->NEXT::foo }    
 }
 
+Class::C3::initialize();
+
 is(Foo->foo, 'Foo::foo', '... got the right value from Foo->foo');
 is(Fuz->foo, 'Fuz::foo => Foo::foo', '... got the right value from Fuz->foo');
 is(Bar->foo, 'Bar::foo => Foo::foo', '... got the right value from Bar->foo');

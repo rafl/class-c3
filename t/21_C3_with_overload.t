@@ -32,6 +32,8 @@ BEGIN {
     use Class::C3;
 }
 
+Class::C3::initialize();
+
 my $x = InheritingFromOverloadedTest->new();
 isa_ok($x, 'InheritingFromOverloadedTest');
 

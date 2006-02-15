@@ -46,6 +46,8 @@ except TypeError:
     use base ('XY', 'YX');
 }
 
+Class::C3::initialize();
+
 eval { 
     # now try to calculate the MRO
     # and watch it explode :)

@@ -49,6 +49,8 @@ BEGIN {
     our %hello = (h => 1, e => 2, l => "3 & 4", o => 5)
 }
 
+Class::C3::initialize();
+
 is(Diamond_D->hello, 'Diamond_C::hello', '... method resolves with the correct MRO');
 is(Diamond_D->goodbye, 'Diamond_C::goodbye', '... method resolves with the correct MRO');
 

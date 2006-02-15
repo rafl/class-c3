@@ -53,6 +53,8 @@ This tests the classic diamond inheritence pattern.
     sub foo { 'Diamond_D::foo => ' . (shift)->next::method() }   
 }
 
+Class::C3::initialize();
+
 is_deeply(
     [ Class::C3::calculateMRO('Diamond_D') ],
     [ qw(Diamond_D Diamond_B Diamond_C Diamond_A) ],
