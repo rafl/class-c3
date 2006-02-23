@@ -1,6 +1,6 @@
 Revision history for Perl extension Class::C3.
 
-0.11
+0.11 
     - added some more tests for edge cases
     - removed INIT, you must explicitly call &initialize now
         - added docs explaining this
@@ -9,6 +9,8 @@ Revision history for Perl extension Class::C3.
       that as a dependency to this module
     - added docs to explain the "next::method in anon-sub" issue
         - suggestions/solutions/patches welcome :)
+    - bumped the Scalar::Util version requirement back down
+      to 1.10, apparently the newer version has some issues          
 
 0.10 - Wed, Feb 8, 2006
     - removed the Sub::Name and NEXT dependencies and 
