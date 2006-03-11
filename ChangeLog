@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::C3.
 
+0.12
+    - clarifying docs for &initialize (thanks jcs)
+
 0.11 Thurs. Feb 23, 2006
     - added some more tests for edge cases
     - removed INIT, you must explicitly call &initialize now

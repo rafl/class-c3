@@ -7,7 +7,7 @@ use warnings;
 use Scalar::Util 'blessed';
 use Algorithm::C3;
 
-our $VERSION = '0.11';
+our $VERSION = '0.12';
 
 # this is our global stash of both 
 # MRO's and method dispatch tables
@@ -315,7 +315,21 @@ Given a C<$class> this will return an array of class names in the proper C3 meth
 =item B<initialize>
 
 This B<must be called> to initalize the C3 method dispatch tables, this module B<will not work> if 
-you do not do this. It is advised to do this as soon as possible B<after> any classes which use C3.
+you do not do this. It is advised to do this as soon as possible B<after> loading any classes which 
+use C3. Here is a quick code example:
+  
+  package Foo;
+  use Class::C3;
+  # ... Foo methods here
+  
+  package Bar;
+  use Class::C3;
+  use base 'Foo';
+  # ... Bar methods here
+  
+  package main;
+  
+  Class::C3::initialize(); # now it is safe to use Foo and Bar
 
 This function used to be called automatically for you in the INIT phase of the perl compiler, but 
 that lead to warnings if this module was required at runtime. After discussion with my user base 
