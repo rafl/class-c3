@@ -2,6 +2,9 @@ Revision history for Perl extension Class::C3.
 
 0.12
     - clarifying docs for &initialize (thanks jcs)
+    - applying patch from Robert Norris to add 
+      next::can() functionality which allows safe 
+      probing of the presence of the next method
 
 0.11 Thurs. Feb 23, 2006
     - added some more tests for edge cases

@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 7;
+use Test::More tests => 9;
 
 BEGIN {
     use lib 'opt', '../opt', '..';    
@@ -42,7 +42,8 @@ This tests the classic diamond inheritence pattern.
     use c3;    
     use base 'Diamond_A';     
     sub foo { 'Diamond_C::foo' }   
-    sub buz { 'Diamond_C::buz' }           
+    sub buz { 'Diamond_C::buz' }         
+    sub woz { 'Diamond_C::woz' }  
 }
 {
     package Diamond_D;
@@ -51,7 +52,9 @@ This tests the classic diamond inheritence pattern.
     sub foo { 'Diamond_D::foo => ' . (shift)->next::method() } 
     sub bar { 'Diamond_D::bar => ' . (shift)->next::method() }   
     sub buz { 'Diamond_D::buz => ' . (shift)->baz() }  
-    sub fuz { 'Diamond_D::fuz => ' . (shift)->next::method() }           
+    sub fuz { 'Diamond_D::fuz => ' . (shift)->next::method() }
+    sub woz { 'Diamond_D::woz can => ' . (shift)->next::can() }
+    sub noz { 'Diamond_D::noz can => ' . (shift)->next::can() }               
 
 }
 
@@ -69,4 +72,5 @@ is(Diamond_D->buz, 'Diamond_D::buz => Diamond_B::baz => Diamond_A::baz', '... ca
 eval { Diamond_D->fuz };
 like($@, qr/^No next::method 'fuz' found for Diamond_D/, '... cannot re-dispatch to a method which is not there');
 
-
+is(Diamond_D->woz, 'Diamond_D::woz can => 1', '... can re-dispatch figured out correctly');
+is(Diamond_D->noz, 'Diamond_D::noz can => 0', '... cannot re-dispatch figured out correctly');

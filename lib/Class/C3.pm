@@ -158,8 +158,8 @@ our $VERSION = '0.05';
 
 our %METHOD_CACHE;
 
-sub method {
-    my $level = 1;
+sub _find {
+    my $level = 2;
     my ($method_caller, $label, @label);
     while ($method_caller = (caller($level++))[3]) {
       @label = (split '::', $method_caller);
@@ -172,28 +172,32 @@ sub method {
     my $self     = $_[0];
     my $class    = blessed($self) || $self;
     
-    goto &{ $METHOD_CACHE{"$class|$caller|$label"} ||= do {
-
-      my @MRO = Class::C3::calculateMRO($class);
-
-      my $current;
-      while ($current = shift @MRO) {
-          last if $caller eq $current;
-      }
-
-      no strict 'refs';
-      my $found;
-      foreach my $class (@MRO) {
-          next if (defined $Class::C3::MRO{$class} && 
-                   defined $Class::C3::MRO{$class}{methods}{$label});          
-          last if (defined ($found = *{$class . '::' . $label}{CODE}));
-      }
-
-      die "No next::method '$label' found for $self" unless $found;
-
-      $found;
-    } };
+    return $METHOD_CACHE{"$class|$caller|$label"} ||= do {
+        
+        my @MRO = Class::C3::calculateMRO($class);
+        
+        my $current;
+        while ($current = shift @MRO) {
+            last if $caller eq $current;
+        }
+        
+        no strict 'refs';
+        my $found;
+        foreach my $class (@MRO) {
+            next if (defined $Class::C3::MRO{$class} && 
+                     defined $Class::C3::MRO{$class}{methods}{$label});          
+            last if (defined ($found = *{$class . '::' . $label}{CODE}));
+        }
+        
+        die "No next::method '$label' found for $_[0]" if $_[1] && !$found;
+        
+        $found;
+    };
 }
+
+sub method { goto &{_find($_[0], 1)} }
+
+sub can { return _find($_[0], 0) ? 1 : 0 }
 
 1;
 
@@ -396,6 +400,12 @@ that you cannot dispatch to a method of a different name (this is how C<NEXT::> 
 
 The next thing to keep in mind is that you will need to pass all arguments to C<next::method> it can 
 not automatically use the current C<@_>. 
+
+If C<next::method> cannot find a next method to re-dispatch the call to, it will throw an exception.
+You can use C<next::can> to see if C<next::method> will succeed before you call it like so:
+
+  $self->next::method(@_) if $self->next::can; 
+
 
 There are some caveats about using C<next::method>, see below for those.
 
