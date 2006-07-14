@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 9;
+use Test::More tests => 11;
 
 BEGIN {
     use lib 'opt', '../opt', '..';    
@@ -42,8 +42,10 @@ This tests the classic diamond inheritence pattern.
     use c3;    
     use base 'Diamond_A';     
     sub foo { 'Diamond_C::foo' }   
-    sub buz { 'Diamond_C::buz' }         
-    sub woz { 'Diamond_C::woz' }  
+    sub buz { 'Diamond_C::buz' }     
+    
+    sub woz { 'Diamond_C::woz' }
+    sub maybe { 'Diamond_C::maybe' }         
 }
 {
     package Diamond_D;
@@ -52,9 +54,13 @@ This tests the classic diamond inheritence pattern.
     sub foo { 'Diamond_D::foo => ' . (shift)->next::method() } 
     sub bar { 'Diamond_D::bar => ' . (shift)->next::method() }   
     sub buz { 'Diamond_D::buz => ' . (shift)->baz() }  
-    sub fuz { 'Diamond_D::fuz => ' . (shift)->next::method() }
-    sub woz { 'Diamond_D::woz can => ' . (shift)->next::can() }
-    sub noz { 'Diamond_D::noz can => ' . (shift)->next::can() }               
+    sub fuz { 'Diamond_D::fuz => ' . (shift)->next::method() }  
+    
+    sub woz { 'Diamond_D::woz can => ' . ((shift)->next::can() ? 1 : 0) }
+    sub noz { 'Diamond_D::noz can => ' . ((shift)->next::can() ? 1 : 0) }
+
+    sub maybe { 'Diamond_D::maybe => ' . ((shift)->maybe::next::method() || 0) }
+    sub moybe { 'Diamond_D::moybe => ' . ((shift)->maybe::next::method() || 0) }             
 
 }
 
@@ -74,3 +80,6 @@ like($@, qr/^No next::method 'fuz' found for Diamond_D/, '... cannot re-dispatch
 
 is(Diamond_D->woz, 'Diamond_D::woz can => 1', '... can re-dispatch figured out correctly');
 is(Diamond_D->noz, 'Diamond_D::noz can => 0', '... cannot re-dispatch figured out correctly');
+
+is(Diamond_D->maybe, 'Diamond_D::maybe => Diamond_C::maybe', '... redispatched D to C when it exists');
+is(Diamond_D->moybe, 'Diamond_D::moybe => 0', '... quietly failed redispatch from D');

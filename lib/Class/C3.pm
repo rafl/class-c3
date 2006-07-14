@@ -158,8 +158,10 @@ our $VERSION = '0.05';
 
 our %METHOD_CACHE;
 
-sub _find {
-    my $level = 2;
+sub method {
+    my $indirect = caller() =~ /^(?:next|maybe::next)$/;
+    my $level = $indirect ? 2 : 1;
+     
     my ($method_caller, $label, @label);
     while ($method_caller = (caller($level++))[3]) {
       @label = (split '::', $method_caller);
@@ -172,7 +174,7 @@ sub _find {
     my $self     = $_[0];
     my $class    = blessed($self) || $self;
     
-    return $METHOD_CACHE{"$class|$caller|$label"} ||= do {
+    my $method = $METHOD_CACHE{"$class|$caller|$label"} ||= do {
         
         my @MRO = Class::C3::calculateMRO($class);
         
@@ -189,15 +191,27 @@ sub _find {
             last if (defined ($found = *{$class . '::' . $label}{CODE}));
         }
         
-        die "No next::method '$label' found for $_[0]" if $_[1] && !$found;
-        
         $found;
     };
+
+    return $method if $indirect;
+
+    die "No next::method '$label' found for $self" if !$method;
+
+    goto &{$method};
 }
 
-sub method { goto &{_find($_[0], 1)} }
+sub can { method($_[0]) }
 
-sub can { return _find($_[0], 0) ? 1 : 0 }
+package  # hide me from PAUSE
+    maybe::next; 
+
+use strict;
+use warnings;
+
+our $VERSION = '0.01';
+
+sub method { (next::method($_[0]) || return)->(@_) }
 
 1;
 
@@ -406,6 +420,10 @@ You can use C<next::can> to see if C<next::method> will succeed before you call 
 
   $self->next::method(@_) if $self->next::can; 
 
+Additionally, you can use C<maybe::next::method> as a shortcut to only call the next method if it exists. 
+The previous example could be simply written as:
+
+  $self->maybe::next::method(@_);
 
 There are some caveats about using C<next::method>, see below for those.
 
