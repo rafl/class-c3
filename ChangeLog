@@ -1,6 +1,6 @@
 Revision history for Perl extension Class::C3.
 
-0.12
+0.12 Tues. July 18, 2006
     - clarifying docs for &initialize (thanks jcs)
     - applying patch from Robert Norris to add 
       next::can() and maybe::next::method() 

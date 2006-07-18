@@ -552,6 +552,9 @@ and finding many bugs and providing fixes.
 =item Thanks to Justin Guenther for making C<next::method> more robust by handling 
 calls inside C<eval> and anon-subs.
 
+=item Thanks to Robert Norris for adding support for C<next::can> and 
+C<maybe::next::method>.
+
 =back
 
 =head1 AUTHOR
