@@ -7,7 +7,7 @@ use warnings;
 use Scalar::Util 'blessed';
 use Algorithm::C3;
 
-our $VERSION = '0.12';
+our $VERSION = '0.13';
 
 # this is our global stash of both 
 # MRO's and method dispatch tables
@@ -67,15 +67,16 @@ sub reinitialize {
 ## functions for applying C3 to classes
 
 sub _calculate_method_dispatch_tables {
+    my %merge_cache;
     foreach my $class (keys %MRO) {
-        _calculate_method_dispatch_table($class);
+        _calculate_method_dispatch_table($class, \%merge_cache);
     }
 }
 
 sub _calculate_method_dispatch_table {
-    my $class = shift;
+    my ($class, $merge_cache) = @_;
     no strict 'refs';
-    my @MRO = calculateMRO($class);
+    my @MRO = calculateMRO($class, $merge_cache);
     $MRO{$class} = { MRO => \@MRO };
     my $has_overload_fallback = 0;
     my %methods;
@@ -139,11 +140,11 @@ sub _remove_method_dispatch_table {
 ## functions for calculating C3 MRO
 
 sub calculateMRO {
-    my ($class) = @_;
+    my ($class, $merge_cache) = @_;
     return Algorithm::C3::merge($class, sub { 
         no strict 'refs'; 
         @{$_[0] . '::ISA'};
-    });
+    }, $merge_cache);
 }
 
 package  # hide me from PAUSE

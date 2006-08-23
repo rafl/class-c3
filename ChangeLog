@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::C3.
 
+0.13 Not Yet Released XXXX
+    - Make use of Algorithm::C3 0.05's merge caching
+
 0.12 Tues. July 18, 2006
     - clarifying docs for &initialize (thanks jcs)
     - applying patch from Robert Norris to add 
