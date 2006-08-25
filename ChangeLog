@@ -1,6 +1,6 @@
 Revision history for Perl extension Class::C3.
 
-0.13 Not Yet Released XXXX
+0.13 Fri. Aug 25, 2006
     - Make use of Algorithm::C3 0.05's merge caching
 
 0.12 Tues. July 18, 2006
