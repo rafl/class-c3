@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::C3.
 
+0.14 XXX Not Yet Released
+    - Fix for rt.cpan.org #21558
+
 0.13 Fri. Aug 25, 2006
     - Make use of Algorithm::C3 0.05's merge caching
 

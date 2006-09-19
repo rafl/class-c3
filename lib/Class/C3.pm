@@ -7,7 +7,7 @@ use warnings;
 use Scalar::Util 'blessed';
 use Algorithm::C3;
 
-our $VERSION = '0.13';
+our $VERSION = '0.14';
 
 # this is our global stash of both 
 # MRO's and method dispatch tables
@@ -28,6 +28,7 @@ our %MRO;
 # use these for debugging ...
 sub _dump_MRO_table { %MRO }
 our $TURN_OFF_C3 = 0;
+our $_initialized = 0;
 
 sub import {
     my $class = caller();
@@ -45,9 +46,14 @@ sub import {
 sub initialize {
     # why bother if we don't have anything ...
     return unless keys %MRO;
+    if($_initialized) {
+        uninitialize();
+        $MRO{$_} = undef foreach keys %MRO;
+    }
     _calculate_method_dispatch_tables();
     _apply_method_dispatch_tables();
     %next::METHOD_CACHE = ();
+    $_initialized = 1;
 }
 
 sub uninitialize {
@@ -55,14 +61,10 @@ sub uninitialize {
     return unless keys %MRO;    
     _remove_method_dispatch_tables();    
     %next::METHOD_CACHE = ();
+    $_initialized = 0;
 }
 
-sub reinitialize {
-    uninitialize();
-    # clean up the %MRO before we re-initialize
-    $MRO{$_} = undef foreach keys %MRO;
-    initialize();
-}
+sub reinitialize { goto &initialize }
 
 ## functions for applying C3 to classes
 
@@ -358,7 +360,9 @@ any other users other than the L<DBIx::Class> folks). The simplest solution of c
 your own INIT method which calls this function. 
 
 NOTE: 
-This can B<not> be used to re-load the dispatch tables for all classes. Use C<reinitialize> for that.
+
+If C<initialize> detects that C<initialize> has already been executed, it will L</uninitialize> and
+clear the MRO cache first.
 
 =item B<uninitialize>
 
@@ -367,11 +371,7 @@ style dispatch order (depth-first, left-to-right).
 
 =item B<reinitialize>
 
-This effectively calls C<uninitialize> followed by C<initialize> the result of which is a reloading of
-B<all> the calculated C3 dispatch tables. 
-
-It should be noted that if you have a large class library, this could potentially be a rather costly 
-operation.
+This is an alias for L</initialize> above.
 
 =back
 
