@@ -31,3 +31,5 @@ t/lib/F.pm
 t/pod.t
 t/pod_coverage.t
 util/visualize_c3.pl
+Makefile.PL
+META.yml
