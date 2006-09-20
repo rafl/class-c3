@@ -1,20 +1,20 @@
 Revision history for Perl extension Class::C3.
 
-0.14 XXX Not Yet Released
+0.14 Tues, Sep 19, 2006
     - Fix for rt.cpan.org #21558
+    - converted to Module::Build
 
-0.13 Fri. Aug 25, 2006
+0.13 Fri, Aug 25, 2006
     - Make use of Algorithm::C3 0.05's merge caching
 
-0.12 Tues. July 18, 2006
+0.12 Tues, July 18, 2006
     - clarifying docs for &initialize (thanks jcs)
     - applying patch from Robert Norris to add 
       next::can() and maybe::next::method() 
       functionality which allows safe probing of 
       the presence of the next method
-      
 
-0.11 Thurs. Feb 23, 2006
+0.11 Thurs, Feb 23, 2006
     - added some more tests for edge cases
     - removed INIT, you must explicitly call &initialize now
         - added docs explaining this
