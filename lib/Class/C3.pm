@@ -28,6 +28,8 @@ our %MRO;
 # use these for debugging ...
 sub _dump_MRO_table { %MRO }
 our $TURN_OFF_C3 = 0;
+
+# state tracking for initialize()/uninitialize()
 our $_initialized = 0;
 
 sub import {
@@ -561,6 +563,8 @@ C<maybe::next::method>.
 =head1 AUTHOR
 
 Stevan Little, E<lt>stevan@iinteractive.comE<gt>
+
+Brandon L. Black, E<lt>blblack@gmail.comE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
