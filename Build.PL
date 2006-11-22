@@ -7,7 +7,7 @@ my $build = Module::Build->new(
     license => 'perl',
     requires => {
         'Scalar::Util'    => 1.10,
-        'Algorithm::C3'   => 0.05,
+        'Algorithm::C3'   => 0.06,
     },
     optional => {},
     build_requires => {

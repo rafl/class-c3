@@ -7,7 +7,7 @@ use warnings;
 use Scalar::Util 'blessed';
 use Algorithm::C3;
 
-our $VERSION = '0.14';
+our $VERSION = '0.14_01';
 
 # this is our global stash of both 
 # MRO's and method dispatch tables
