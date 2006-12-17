@@ -5,15 +5,16 @@ use strict;
 use warnings;
 
 use Scalar::Util 'blessed';
-use Algorithm::C3;
-use B ();
 
 our $VERSION = '0.14';
 our $C3_IN_CORE;
 
 BEGIN {
     eval { require mro };
-    if(!$@ && &mro::get_mro_linear_c3) {
+    if($@) {
+        require Algorithm::C3;
+    }
+    else {
         $C3_IN_CORE = 1;
     }
 }
@@ -48,7 +49,7 @@ sub import {
     return if $class eq 'main';
     return if $TURN_OFF_C3;
     if($C3_IN_CORE) {
-        B::enable_c3mro($class);
+        mro::set_mro_c3($class);
     }
     # make a note to calculate $class 
     # during INIT phase
