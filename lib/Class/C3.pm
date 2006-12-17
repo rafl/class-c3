@@ -11,7 +11,12 @@ use B ();
 our $VERSION = '0.14';
 our $C3_IN_CORE;
 
-BEGIN { $C3_IN_CORE = ($] > 5.009004) }
+BEGIN {
+    eval { require mro };
+    if(!$@ && &mro::get_mro_linear_c3) {
+        $C3_IN_CORE = 1;
+    }
+}
 
 # this is our global stash of both 
 # MRO's and method dispatch tables
@@ -57,7 +62,7 @@ sub initialize {
     # why bother if we don't have anything ...
     return unless keys %MRO;
     if($C3_IN_CORE) {
-        B::enable_c3mro($_) for keys %MRO;
+        mro::set_mro_c3($_) for keys %MRO;
     }
     else {
         if($_initialized) {
@@ -75,7 +80,7 @@ sub uninitialize {
     %next::METHOD_CACHE = ();
     return unless keys %MRO;    
     if($C3_IN_CORE) {
-        B::disable_c3mro($_) for keys %MRO;
+        mro::set_mro_dfs($_) for keys %MRO;
     }
     else {
         _remove_method_dispatch_tables();    
@@ -169,7 +174,7 @@ sub _remove_method_dispatch_table {
 sub calculateMRO {
     my ($class, $merge_cache) = @_;
     if($C3_IN_CORE) {
-        return @{B::get_linear_isa_c3($class)};
+        return @{mro::get_mro_linear_c3($class)};
     }
     else {
         return Algorithm::C3::merge($class, sub { 
@@ -209,7 +214,7 @@ sub method {
     my $method;
 
     # You would think we could do this, but we can't apparently :(
-    #if($Class::C3::C3_IN_CORE && B::is_c3mro($class)) {
+    #if($Class::C3::C3_IN_CORE && mro::is_mro_c3($class)) {
     #    $method = $class->can('SUPER::' . $label);
     #}
     #else {

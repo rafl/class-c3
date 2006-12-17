@@ -1,35 +1,54 @@
+=== Makefile.micro
+==================================================================
+--- Makefile.micro	(/local/perl-current)	(revision 12419)
++++ Makefile.micro	(/local/perl-c3)	(revision 12419)
+@@ -9,7 +9,7 @@
+ all:	microperl
+ 
+ O = uav$(_O) udeb$(_O) udoio$(_O) udoop$(_O) udump$(_O) \
+-	uglobals$(_O) ugv$(_O) uhv$(_O) \
++	uglobals$(_O) ugv$(_O) uhv$(_O) umro$(_O)\
+ 	umg$(_O) uperlmain$(_O) uop$(_O) ureentr$(_O) \
+ 	upad$(_O) uperl$(_O) uperlio$(_O) uperly$(_O) upp$(_O) \
+ 	upp_ctl$(_O) upp_hot$(_O) upp_sys$(_O) upp_pack$(_O) upp_sort$(_O) \
+@@ -70,6 +70,9 @@
+ ugv$(_O):	$(HE) gv.c
+ 	$(CC) -c -o $@ $(CFLAGS) gv.c
+ 
++umro$(_O):	$(HE) mro.c
++	$(CC) -c -o $@ $(CFLAGS) mro.c
++
+ uhv$(_O):	$(HE) hv.c
+ 	$(CC) -c -o $@ $(CFLAGS) hv.c
+ 
 === embed.h
 ==================================================================
---- embed.h	(/local/perl-current)	(revision 12336)
-+++ embed.h	(/local/perl-c3)	(revision 12336)
-@@ -266,6 +266,11 @@
+--- embed.h	(/local/perl-current)	(revision 12419)
++++ embed.h	(/local/perl-c3)	(revision 12419)
+@@ -266,6 +266,9 @@
  #define gv_efullname		Perl_gv_efullname
  #define gv_efullname4		Perl_gv_efullname4
  #define gv_fetchfile		Perl_gv_fetchfile
-+#ifdef PERL_CORE
-+#define linear_isa		Perl_linear_isa
-+#define linear_isa_c3		Perl_linear_isa_c3
-+#define linear_isa_dfs		Perl_linear_isa_dfs
-+#endif
++#define mro_linear		Perl_mro_linear
++#define mro_linear_c3		Perl_mro_linear_c3
++#define mro_linear_dfs		Perl_mro_linear_dfs
  #define gv_fetchmeth		Perl_gv_fetchmeth
  #define gv_fetchmeth_autoload	Perl_gv_fetchmeth_autoload
  #define gv_fetchmethod_autoload	Perl_gv_fetchmethod_autoload
-@@ -2470,6 +2475,11 @@
+@@ -2470,6 +2473,9 @@
  #define gv_efullname(a,b)	Perl_gv_efullname(aTHX_ a,b)
  #define gv_efullname4(a,b,c,d)	Perl_gv_efullname4(aTHX_ a,b,c,d)
  #define gv_fetchfile(a)		Perl_gv_fetchfile(aTHX_ a)
-+#ifdef PERL_CORE
-+#define linear_isa(a)		Perl_linear_isa(aTHX_ a)
-+#define linear_isa_c3(a)	Perl_linear_isa_c3(aTHX_ a)
-+#define linear_isa_dfs(a,b)	Perl_linear_isa_dfs(aTHX_ a,b)
-+#endif
++#define mro_linear(a)		Perl_mro_linear(aTHX_ a)
++#define mro_linear_c3(a)	Perl_mro_linear_c3(aTHX_ a)
++#define mro_linear_dfs(a,b)	Perl_mro_linear_dfs(aTHX_ a,b)
  #define gv_fetchmeth(a,b,c,d)	Perl_gv_fetchmeth(aTHX_ a,b,c,d)
  #define gv_fetchmeth_autoload(a,b,c,d)	Perl_gv_fetchmeth_autoload(aTHX_ a,b,c,d)
  #define gv_fetchmethod_autoload(a,b,c)	Perl_gv_fetchmethod_autoload(aTHX_ a,b,c)
 === embedvar.h
 ==================================================================
---- embedvar.h	(/local/perl-current)	(revision 12336)
-+++ embedvar.h	(/local/perl-c3)	(revision 12336)
+--- embedvar.h	(/local/perl-current)	(revision 12419)
++++ embedvar.h	(/local/perl-c3)	(revision 12419)
 @@ -229,6 +229,7 @@
  #define PL_incgv		(vTHX->Iincgv)
  #define PL_initav		(vTHX->Iinitav)
@@ -46,337 +65,11 @@
  #define PL_Iknown_layers	PL_known_layers
  #define PL_Ilast_lop		PL_last_lop
  #define PL_Ilast_lop_op		PL_last_lop_op
-=== gv.c
+=== pod/perlapi.pod
 ==================================================================
---- gv.c	(/local/perl-current)	(revision 12336)
-+++ gv.c	(/local/perl-c3)	(revision 12336)
-@@ -283,6 +283,325 @@
- }
- 
- /*
-+=for apidoc linear_isa_dfs
-+
-+Returns the Depth-First Search linearization of @ISA
-+the given stash.  The return value is a read-only AV*,
-+and is cached based on C<PL_isa_generation>.
-+
-+=cut
-+*/
-+AV*
-+Perl_linear_isa_dfs(pTHX_ HV *stash, I32 level) {
-+    AV* retval;
-+    GV** gvp;
-+    GV* gv;
-+    AV* av;
-+    SV** svp;
-+    I32 items;
-+    AV* subrv;
-+    SV** subrv_p;
-+    I32 subrv_items;
-+    const char* stashname;
-+
-+    assert(stash);
-+    assert(HvAUX(stash));
-+
-+    stashname = HvNAME_get(stash);
-+    if (!stashname)
-+      Perl_croak(aTHX_
-+		 "Can't linearize anonymous symbol table");
-+
-+    if (level > 100)
-+	Perl_croak(aTHX_ "Recursive inheritance detected in package '%s'",
-+	      stashname);
-+
-+    /* return the cached linearization if valid */
-+    if((retval = HvAUX(stash)->xhv_dfs_linear_isa)
-+       && HvAUX(stash)->xhv_dfs_isa_gen == PL_isa_generation) {
-+          SvREFCNT_inc_simple_void_NN(retval);
-+          return retval;
-+    }
-+
-+    /* make a new one */
-+
-+    if(retval) SvREFCNT_dec(retval);
-+    HvAUX(stash)->xhv_dfs_linear_isa = retval = newAV();
-+    HvAUX(stash)->xhv_dfs_isa_gen = PL_isa_generation;
-+    av_push(retval, newSVpv(stashname, 0)); /* add ourselves at the top */
-+
-+    gvp = (GV**)hv_fetchs(stash, "ISA", FALSE);
-+    av = (gvp && (gv = *gvp) && gv != (GV*)&PL_sv_undef) ? GvAV(gv) : NULL;
-+
-+    if(av) {
-+        svp = AvARRAY(av);
-+        items = AvFILLp(av) + 1;
-+        while (items--) {
-+            SV* const sv = *svp++;
-+            HV* const basestash = gv_stashsv(sv, FALSE);
-+            if (!basestash) {
-+                if (ckWARN(WARN_MISC))
-+                    Perl_warner(aTHX_ packWARN(WARN_MISC), "Can't locate package %"SVf" for @%s::ISA",
-+                        (void*)sv, stashname);
-+                continue;
-+            }
-+            subrv = linear_isa_dfs(basestash, level + 1);
-+            subrv_p = AvARRAY(subrv);
-+            subrv_items = AvFILLp(subrv) + 1;
-+            while(subrv_items--) {
-+                SV* subsv = *subrv_p++;
-+                SvREFCNT_inc_simple_void_NN(subsv);
-+                av_push(retval, subsv);
-+            }
-+            SvREFCNT_dec(subrv);
-+        }
-+    }
-+
-+    SvREADONLY_on(retval);
-+    SvREFCNT_inc_simple_void_NN(retval);
-+    return retval;
-+}
-+
-+AV* __av_shallow_copy(AV* inav) {
-+    AV* outav = newAV();
-+    SV** inptr = AvARRAY(inav);
-+    I32 items = AvFILLp(inav) + 1;
-+    while(items--) {
-+        SV* tempsv = *inptr++;
-+        SvREFCNT_inc_simple_void_NN(tempsv);
-+        av_push(outav, tempsv);
-+    }
-+    return outav;
-+}
-+
-+/* increment the numeric value of a key in a hash,
-+   creating at 1 if neccesary */
-+void __hv_incr(HV* inhash, SV* inkey) {
-+    HE* he = hv_fetch_ent(inhash, inkey, 0, 0);
-+    SV* val;
-+    if(!he) {
-+        val = newSViv(1);
-+        hv_store_ent(inhash, inkey, val, 0);
-+    }
-+    else {
-+        val = HeVAL(he);
-+        sv_inc(val);
-+    }
-+}
-+
-+/*
-+=for apidoc linear_isa_c3
-+
-+Returns the C3 linearization of @ISA
-+the given stash.  The return value is a read-only AV*,
-+and is cached based on C<PL_isa_generation>.
-+
-+=cut
-+*/
-+AV*
-+Perl_linear_isa_c3(pTHX_ HV *root) {
-+    AV* retval;
-+    GV** gvp;
-+    GV* gv;
-+    AV* crisa;
-+    SV** svp;
-+    const char* rootname;
-+    AV* C3STACK;
-+    HV* current_root;
-+    AV* recurse_mergeout;
-+    SV* isv;
-+    HV* seen;
-+
-+    assert(root);
-+    assert(HvAUX(root));
-+
-+    rootname = HvNAME_get(root);
-+    if (!rootname)
-+      Perl_croak(aTHX_
-+		 "Can't linearize anonymous symbol table");
-+
-+    /* shortcut in the case root's linear isa is already cached */
-+    if((retval = HvAUX(root)->xhv_c3_linear_isa)
-+      && (HvAUX(root)->xhv_c3_isa_gen == PL_isa_generation)) {
-+        SvREFCNT_inc_simple_void_NN(retval);
-+        return retval;
-+    }
-+
-+    C3STACK = newAV();
-+    current_root = root;
-+    recurse_mergeout = newAV();
-+    isv = newSViv(0);
-+    seen = newHV();
-+    hv_store(seen, rootname, strlen(rootname), &PL_sv_yes, 0);
-+
-+    while(1) {
-+        gvp = (GV**)hv_fetchs(current_root, "ISA", FALSE);
-+        crisa = (gvp && (gv = *gvp) && gv != (GV*)&PL_sv_undef) ? GvAV(gv) : NULL;
-+
-+        if(crisa && SvIVX(isv) <= av_len(crisa)) {
-+            AV* new_stack_entry;
-+            SV* new_root_sv;
-+            HV* new_root;
-+            const char* new_root_name;
-+            int new_root_len;
-+            svp = av_fetch(crisa, SvIVX(isv), 0);
-+            assert(svp);
-+            new_root_sv = *svp;
-+            new_root = gv_stashsv(new_root_sv, FALSE);
-+            assert(new_root);
-+            sv_inc(isv);
-+
-+            new_root_name = HvNAME_get(new_root);
-+            new_root_len = HvNAMELEN_get(new_root);
-+            if(hv_exists(seen, new_root_name, new_root_len)) {
-+                Perl_croak(aTHX_ "infinite recursion detected");
-+            }
-+            hv_store(seen, new_root_name, new_root_len, &PL_sv_yes, 0);
-+
-+            new_stack_entry = newAV();
-+            av_push(new_stack_entry, (SV*)current_root);
-+            av_push(new_stack_entry, (SV*)recurse_mergeout);
-+            av_push(new_stack_entry, isv);
-+            av_push(C3STACK, (SV*)new_stack_entry);
-+
-+            current_root = new_root;
-+            recurse_mergeout = newAV();
-+            isv = newSViv(0);
-+            continue;
-+        }
-+
-+        const char* current_root_name = HvNAME_get(current_root);
-+        int current_root_len = HvNAMELEN_get(current_root);
-+        SV* current_root_name_sv = newSVpv(current_root_name, current_root_len);
-+        hv_delete(seen, current_root_name, current_root_len, G_DISCARD);
-+
-+        AV* res = HvAUX(current_root)->xhv_c3_linear_isa;
-+        if(!res || HvAUX(current_root)->xhv_c3_isa_gen != PL_isa_generation) {
-+            if(res) SvREFCNT_dec(res);
-+            res = newAV();
-+            HV* tails = newHV();
-+            AV* seqs = newAV();
-+            av_push(res, current_root_name_sv);
-+
-+            SV** avptr = AvARRAY(recurse_mergeout);
-+            I32 items = AvFILLp(recurse_mergeout) + 1;
-+            while(items--) {
-+                SV** seqptr;
-+                I32 seqitems;
-+                AV* oseq = (AV*)*avptr++;
-+                AV* seq = __av_shallow_copy(oseq);
-+                av_push(seqs, (SV*)seq);
-+                seqptr = AvARRAY(seq) + 1;
-+                seqitems = AvFILLp(seq);
-+                while(seqitems--) {
-+                    __hv_incr(tails, *(seqptr++));
-+                }
-+            }
-+
-+            if(crisa) {
-+                AV* crisa_seq = __av_shallow_copy(crisa);
-+                I32 seqitems = AvFILLp(crisa_seq);
-+                if(seqitems >= 0) av_push(seqs, (SV*)crisa_seq);
-+                if(seqitems > 0) {
-+                    SV** seqptr = AvARRAY(crisa_seq) + 1;
-+                    while(seqitems--) {
-+                        __hv_incr(tails, *(seqptr++));
-+                    }
-+                }
-+            }
-+
-+            while(1) {
-+                SV* seqhead = NULL;
-+                SV* cand = NULL;
-+                SV* winner = NULL;
-+                SV* val;
-+                HE* tail_entry;
-+                AV* seq;
-+                avptr = AvARRAY(seqs);
-+                items = AvFILLp(seqs)+1;
-+                while(items--) {
-+                    seq = (AV*)*avptr++;
-+                    if(AvFILLp(seq) < 0) continue;
-+                    svp = av_fetch(seq, 0, 0);
-+                    seqhead = *svp;
-+                    if(!winner) {
-+                        cand = seqhead;
-+                        if((tail_entry = hv_fetch_ent(tails, cand, 0, 0))
-+                           && (val = HeVAL(tail_entry))
-+                           && SvIVx(val) > 0)
-+                               continue;
-+                        winner = cand;
-+                        SvREFCNT_inc_simple_void_NN(cand);
-+                        av_push(res, cand);
-+                    }
-+                    if(!sv_cmp(seqhead, winner)) {
-+                        av_shift(seq);
-+                        if(AvFILLp(seq) < 0) continue;
-+                        svp = av_fetch(seq, 0, 0);
-+                        seqhead = *svp;
-+                        tail_entry = hv_fetch_ent(tails, seqhead, 0, 0);
-+                        val = HeVAL(tail_entry);
-+                        sv_dec(val);
-+                    }
-+                }
-+                if(!cand) break;
-+                if(!winner) Perl_croak(aTHX_ "Inconsistent hierarchy XXX");
-+            }
-+            SvREADONLY_on(res);
-+            HvAUX(current_root)->xhv_c3_isa_gen = PL_isa_generation;
-+            HvAUX(current_root)->xhv_c3_linear_isa = res;
-+            SvREFCNT_dec(tails);
-+            SvREFCNT_dec(seqs);
-+        }
-+
-+        SvREFCNT_dec(recurse_mergeout);
-+        SvREFCNT_dec(isv);
-+
-+        if(AvFILLp(C3STACK) < 0) {
-+            /* clean up our temporaries */
-+            SvREFCNT_dec(C3STACK);
-+            SvREFCNT_dec(seen);
-+            SvREFCNT_inc_simple_void_NN(res);
-+            return res;
-+        }
-+
-+        AV* tempav = (AV*)av_pop(C3STACK);
-+        svp = av_fetch(tempav, 0, 0);
-+        current_root = (HV*)*svp;
-+        svp = av_fetch(tempav, 1, 0);
-+        recurse_mergeout = (AV*)*svp;
-+        svp = av_fetch(tempav, 2, 0);
-+        isv = *svp;
-+        SvREFCNT_inc_simple_void_NN(current_root);
-+        SvREFCNT_inc_simple_void_NN(recurse_mergeout);
-+        SvREFCNT_inc_simple_void_NN(isv);
-+        SvREFCNT_dec(tempav);
-+
-+        SvREFCNT_inc_simple_void_NN(res);
-+        av_push(recurse_mergeout, (SV*)res);
-+    }
-+}
-+
-+/*
-+=for apidoc linear_isa
-+
-+Returns either C<linear_isa_c3> or C<linear_isa_dfs> for
-+the given stash, dependant upon which MRO is in effect
-+for that stash.  The return value is a read-only AV*,
-+and is cached based on C<PL_isa_generation>.
-+
-+=cut
-+*/
-+AV*
-+Perl_linear_isa(pTHX_ HV *stash)
-+{
-+    assert(stash);
-+    assert(HvAUX(stash));
-+    return HvC3MRO(stash) ? linear_isa_c3(stash)
-+                          : linear_isa_dfs(stash, 0);
-+}
-+
-+/*
- =for apidoc gv_fetchmeth
- 
- Returns the glob with the given C<name> and a defined subroutine or
-@@ -292,7 +611,7 @@
+--- pod/perlapi.pod	(/local/perl-current)	(revision 12419)
++++ pod/perlapi.pod	(/local/perl-c3)	(revision 12419)
+@@ -1280,7 +1280,7 @@
  The argument C<level> should be either 0 or -1.  If C<level==0>, as a
  side-effect creates a glob with the given C<name> in the given C<stash>
  which in the case of success contains an alias for the subroutine, and sets
@@ -385,7 +78,147 @@
  
  This function grants C<"SUPER"> token as a postfix of the stash name. The
  GV returned from C<gv_fetchmeth> may be a method cache entry, which is not
-@@ -303,133 +622,139 @@
+=== global.sym
+==================================================================
+--- global.sym	(/local/perl-current)	(revision 12419)
++++ global.sym	(/local/perl-c3)	(revision 12419)
+@@ -133,6 +133,9 @@
+ Perl_gv_efullname3
+ Perl_gv_efullname4
+ Perl_gv_fetchfile
++Perl_mro_linear
++Perl_mro_linear_c3
++Perl_mro_linear_dfs
+ Perl_gv_fetchmeth
+ Perl_gv_fetchmeth_autoload
+ Perl_gv_fetchmethod
+=== universal.c
+==================================================================
+--- universal.c	(/local/perl-current)	(revision 12419)
++++ universal.c	(/local/perl-c3)	(revision 12419)
+@@ -36,12 +36,10 @@
+              int len, int level)
+ {
+     dVAR;
+-    AV* av;
+-    GV* gv;
+-    GV** gvp;
+-    HV* hv = NULL;
+-    SV* subgen = NULL;
++    AV* stash_linear_isa;
++    SV** svp;
+     const char *hvname;
++    I32 items;
+ 
+     /* A stash/class can go by many names (ie. User == main::User), so 
+        we compare the stash itself just in case */
+@@ -56,75 +54,27 @@
+     if (strEQ(name, "UNIVERSAL"))
+ 	return TRUE;
+ 
+-    if (level > 100)
+-	Perl_croak(aTHX_ "Recursive inheritance detected in package '%s'",
+-		   hvname);
+-
+-    gvp = (GV**)hv_fetchs(stash, "::ISA::CACHE::", FALSE);
+-
+-    if (gvp && (gv = *gvp) != (GV*)&PL_sv_undef && (subgen = GvSV(gv))
+-	&& (hv = GvHV(gv)))
+-    {
+-	if (SvIV(subgen) == (IV)PL_sub_generation) {
+-	    SV** const svp = (SV**)hv_fetch(hv, name, len, FALSE);
+-	    if (svp) {
+-		SV * const sv = *svp;
+-#ifdef DEBUGGING
+-		if (sv != &PL_sv_undef)
+-		    DEBUG_o( Perl_deb(aTHX_ "Using cached ISA %s for package %s\n",
+-				    name, hvname) );
+-#endif
+-		return (sv == &PL_sv_yes);
+-	    }
++    stash_linear_isa = mro_linear(stash);
++    svp = AvARRAY(stash_linear_isa) + 1;
++    items = AvFILLp(stash_linear_isa);
++    while (items--) {
++	SV* const basename_sv = *svp++;
++        HV* basestash = gv_stashsv(basename_sv, FALSE);
++	if (!basestash) {
++	    if (ckWARN(WARN_MISC))
++		Perl_warner(aTHX_ packWARN(WARN_SYNTAX),
++			    "Can't locate package %"SVf" for the parents of %s",
++			    (void*)basename_sv, hvname);
++	    continue;
+ 	}
+-	else {
+-	    DEBUG_o( Perl_deb(aTHX_ "ISA Cache in package %s is stale\n",
+-			      hvname) );
+-	    hv_clear(hv);
+-	    sv_setiv(subgen, PL_sub_generation);
++        if(name_stash == basestash
++           || strEQ(name, SvPVX(basename_sv))) {
++            SvREFCNT_dec(stash_linear_isa);
++	    return TRUE;
+ 	}
+     }
+ 
+-    gvp = (GV**)hv_fetchs(stash, "ISA", FALSE);
+-
+-    if (gvp && (gv = *gvp) != (GV*)&PL_sv_undef && (av = GvAV(gv))) {
+-	if (!hv || !subgen) {
+-	    gvp = (GV**)hv_fetchs(stash, "::ISA::CACHE::", TRUE);
+-
+-	    gv = *gvp;
+-
+-	    if (SvTYPE(gv) != SVt_PVGV)
+-		gv_init(gv, stash, "::ISA::CACHE::", 14, TRUE);
+-
+-	    if (!hv)
+-		hv = GvHVn(gv);
+-	    if (!subgen) {
+-		subgen = newSViv(PL_sub_generation);
+-		GvSV(gv) = subgen;
+-	    }
+-	}
+-	if (hv) {
+-	    SV** svp = AvARRAY(av);
+-	    /* NOTE: No support for tied ISA */
+-	    I32 items = AvFILLp(av) + 1;
+-	    while (items--) {
+-		SV* const sv = *svp++;
+-		HV* const basestash = gv_stashsv(sv, FALSE);
+-		if (!basestash) {
+-		    if (ckWARN(WARN_MISC))
+-			Perl_warner(aTHX_ packWARN(WARN_SYNTAX),
+-				    "Can't locate package %"SVf" for @%s::ISA",
+-				    (void*)sv, hvname);
+-		    continue;
+-		}
+-		if (isa_lookup(basestash, name, name_stash, len, level + 1)) {
+-		    (void)hv_store(hv,name,len,&PL_sv_yes,0);
+-		    return TRUE;
+-		}
+-	    }
+-	    (void)hv_store(hv,name,len,&PL_sv_no,0);
+-	}
+-    }
++    SvREFCNT_dec(stash_linear_isa);
+     return FALSE;
+ }
+ 
+=== gv.c
+==================================================================
+--- gv.c	(/local/perl-current)	(revision 12419)
++++ gv.c	(/local/perl-c3)	(revision 12419)
+@@ -298,7 +298,7 @@
+ The argument C<level> should be either 0 or -1.  If C<level==0>, as a
+ side-effect creates a glob with the given C<name> in the given C<stash>
+ which in the case of success contains an alias for the subroutine, and sets
+-up caching info for this glob.  Similarly for all the searched stashes.
++up caching info for this glob.
+ 
+ This function grants C<"SUPER"> token as a postfix of the stash name. The
+ GV returned from C<gv_fetchmeth> may be a method cache entry, which is not
+@@ -309,133 +309,139 @@
  =cut
  */
  
@@ -400,9 +233,9 @@
 -    GV* gv;
      GV** gvp;
 -    CV* cv;
-+    AV* linear_isa_av;
-+    SV** linear_isa_svp;
-+    SV* linear_isa_sv;
++    AV* linear_av;
++    SV** linear_svp;
++    SV* linear_sv;
 +    HV* curstash;
 +    GV* candidate = NULL;
 +    CV* cand_cv = NULL;
@@ -472,7 +305,7 @@
 +        HV* basestash;
 +        packlen -= 7;
 +        basestash = gv_stashpvn(hvname, packlen, TRUE);
-+        linear_isa_av = linear_isa(basestash);
++        linear_av = mro_linear(basestash);
 +    }
      else {
 -	topgv = *gvp;
@@ -489,17 +322,17 @@
 -	}
 -	else if (GvCVGEN(topgv) == PL_sub_generation)
 -	    return 0;  /* cache indicates sub doesn't exist */
-+        linear_isa_av = linear_isa(stash); /* has ourselves at the top of the list */
++        linear_av = mro_linear(stash); /* has ourselves at the top of the list */
      }
  
 -    gvp = (GV**)hv_fetchs(stash, "ISA", FALSE);
 -    av = (gvp && (gv = *gvp) && gv != (GV*)&PL_sv_undef) ? GvAV(gv) : NULL;
-+    linear_isa_svp = AvARRAY(linear_isa_av) + 1; /* skip over self */
-+    items = AvFILLp(linear_isa_av); /* no +1, to skip over self */
++    linear_svp = AvARRAY(linear_av) + 1; /* skip over self */
++    items = AvFILLp(linear_av); /* no +1, to skip over self */
 +    while (items--) {
-+        linear_isa_sv = *linear_isa_svp++;
-+        assert(linear_isa_sv);
-+        curstash = gv_stashsv(linear_isa_sv, FALSE);
++        linear_sv = *linear_svp++;
++        assert(linear_sv);
++        curstash = gv_stashsv(linear_sv, FALSE);
  
 -    /* create and re-create @.*::SUPER::ISA on demand */
 -    if (!av || !SvMAGIC(av)) {
@@ -507,7 +340,7 @@
 +        if (!curstash) {
 +            if (ckWARN(WARN_MISC))
 +                Perl_warner(aTHX_ packWARN(WARN_MISC), "Can't locate package %"SVf" for @%s::ISA",
-+                    (void*)linear_isa_sv, hvname);
++                    (void*)linear_sv, hvname);
 +            continue;
 +        }
  
@@ -545,7 +378,7 @@
 +                  GvCV(topgv) = cand_cv;
 +                  GvCVGEN(topgv) = PL_sub_generation;
 +            }
-+            SvREFCNT_dec(linear_isa_av);
++            SvREFCNT_dec(linear_av);
 +	    return candidate;
 +        }
      }
@@ -568,7 +401,7 @@
 -	    if (gv)
 -		goto gotcha;
 -	}
-+    SvREFCNT_dec(linear_isa_av);
++    SvREFCNT_dec(linear_av);
 +
 +    /* Check UNIVERSAL without caching */
 +    if(level == 0 || level == -1) {
@@ -623,20 +456,10 @@
      }
  
      return 0;
-=== lib/c3mro.pm
-==================================================================
---- lib/c3mro.pm	(/local/perl-current)	(revision 12336)
-+++ lib/c3mro.pm	(/local/perl-c3)	(revision 12336)
-@@ -0,0 +1,5 @@
-+package c3mro;
-+use B qw/ enable_c3mro disable_c3mro /;
-+sub import { enable_c3mro(scalar(caller)) }
-+sub unimport { disable_c3mro(scalar(caller)) }
-+1;
 === perlapi.h
 ==================================================================
---- perlapi.h	(/local/perl-current)	(revision 12336)
-+++ perlapi.h	(/local/perl-c3)	(revision 12336)
+--- perlapi.h	(/local/perl-current)	(revision 12419)
++++ perlapi.h	(/local/perl-c3)	(revision 12419)
 @@ -336,6 +336,8 @@
  #define PL_initav		(*Perl_Iinitav_ptr(aTHX))
  #undef  PL_inplace
@@ -646,21 +469,128 @@
  #undef  PL_known_layers
  #define PL_known_layers		(*Perl_Iknown_layers_ptr(aTHX))
  #undef  PL_last_lop
+=== win32/Makefile
+==================================================================
+--- win32/Makefile	(/local/perl-current)	(revision 12419)
++++ win32/Makefile	(/local/perl-c3)	(revision 12419)
+@@ -644,6 +644,7 @@
+ 		..\dump.c	\
+ 		..\globals.c	\
+ 		..\gv.c		\
++		..\mro.c	\
+ 		..\hv.c		\
+ 		..\locale.c	\
+ 		..\mathoms.c    \
+=== win32/makefile.mk
+==================================================================
+--- win32/makefile.mk	(/local/perl-current)	(revision 12419)
++++ win32/makefile.mk	(/local/perl-c3)	(revision 12419)
+@@ -813,6 +813,7 @@
+ 		..\dump.c	\
+ 		..\globals.c	\
+ 		..\gv.c		\
++		..\mro.c	\
+ 		..\hv.c		\
+ 		..\locale.c	\
+ 		..\mathoms.c    \
+=== win32/Makefile.ce
+==================================================================
+--- win32/Makefile.ce	(/local/perl-current)	(revision 12419)
++++ win32/Makefile.ce	(/local/perl-c3)	(revision 12419)
+@@ -571,6 +571,7 @@
+ 		..\dump.c	\
+ 		..\globals.c	\
+ 		..\gv.c		\
++		..\mro.c	\
+ 		..\hv.c		\
+ 		..\mg.c		\
+ 		..\op.c		\
+@@ -790,6 +791,7 @@
+ $(DLLDIR)\dump.obj \
+ $(DLLDIR)\globals.obj \
+ $(DLLDIR)\gv.obj \
++$(DLLDIR)\mro.obj \
+ $(DLLDIR)\hv.obj \
+ $(DLLDIR)\locale.obj \
+ $(DLLDIR)\mathoms.obj \
+=== NetWare/Makefile
+==================================================================
+--- NetWare/Makefile	(/local/perl-current)	(revision 12419)
++++ NetWare/Makefile	(/local/perl-c3)	(revision 12419)
+@@ -701,6 +701,7 @@
+ 		..\dump.c	\
+ 		..\globals.c	\
+ 		..\gv.c		\
++		..\mro.c	\
+ 		..\hv.c		\
+ 		..\locale.c	\
+                 ..\mathoms.c    \
+=== vms/descrip_mms.template
+==================================================================
+--- vms/descrip_mms.template	(/local/perl-current)	(revision 12419)
++++ vms/descrip_mms.template	(/local/perl-c3)	(revision 12419)
+@@ -279,13 +279,13 @@
+ 
+ #### End of system configuration section. ####
+ 
+-c0 = $(MALLOC_C) $(SOCKC) av.c deb.c doio.c doop.c dump.c globals.c gv.c hv.c
++c0 = $(MALLOC_C) $(SOCKC) av.c deb.c doio.c doop.c dump.c globals.c gv.c hv.c mro.c
+ c1 = mg.c locale.c mathoms.c miniperlmain.c numeric.c op.c pad.c perl.c perlapi.c perlio.c
+ c2 = perly.c pp.c pp_ctl.c pp_hot.c pp_pack.c pp_sort.c pp_sys.c regcomp.c regexec.c reentr.c
+ c3 = run.c scope.c sv.c taint.c toke.c universal.c utf8.c util.c vms.c xsutils.c
+ c = $(c0) $(c1) $(c2) $(c3)
+ 
+-obj0 = $(MALLOC_O) $(SOCKO) av$(O) deb$(O) doio$(O) doop$(O) dump$(O)
++obj0 = $(MALLOC_O) $(SOCKO) av$(O) deb$(O) doio$(O) doop$(O) dump$(O) mro$(O)
+ obj1 = globals$(O) gv$(O) hv$(O) locale$(O) mathoms$(O) mg$(O) miniperlmain$(O) numeric$(O) op$(O) pad$(O)
+ obj2 = perl$(O) perlapi$(O) perlio$(O) perly$(O) pp$(O) pp_ctl$(O) pp_hot$(O) reentr$(O)
+ obj3 = pp_pack$(O) pp_sort$(O) pp_sys$(O) regcomp$(O) regexec$(O) run$(O) scope$(O) sv$(O) taint$(O) toke$(O)
+@@ -1594,6 +1594,8 @@
+ 	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
+ gv$(O) : gv.c $(h)
+ 	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
++mro$(O) : mro.c $(h)
++	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
+ hv$(O) : hv.c $(h)
+ 	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
+ locale$(O) : locale.c $(h)
+=== Makefile.SH
+==================================================================
+--- Makefile.SH	(/local/perl-current)	(revision 12419)
++++ Makefile.SH	(/local/perl-c3)	(revision 12419)
+@@ -364,7 +364,7 @@
+ h5 = utf8.h warnings.h
+ h = $(h1) $(h2) $(h3) $(h4) $(h5)
+ 
+-c1 = av.c scope.c op.c doop.c doio.c dump.c gv.c hv.c mg.c reentr.c  perl.c
++c1 = av.c scope.c op.c doop.c doio.c dump.c gv.c hv.c mg.c reentr.c mro.c perl.c
+ c2 = perly.c pp.c pp_hot.c pp_ctl.c pp_sys.c regcomp.c regexec.c utf8.c sv.c
+ c3 = taint.c toke.c util.c deb.c run.c universal.c xsutils.c pad.c globals.c
+ c4 = perlio.c perlapi.c numeric.c mathoms.c locale.c pp_pack.c pp_sort.c
+@@ -372,7 +372,7 @@
+ 
+ c = $(c1) $(c2) $(c3) $(c4) $(c5) miniperlmain.c perlmain.c opmini.c
+ 
+-obj1 = $(madlyobj) $(mallocobj) gv$(OBJ_EXT) toke$(OBJ_EXT) perly$(OBJ_EXT) op$(OBJ_EXT) pad$(OBJ_EXT) regcomp$(OBJ_EXT) dump$(OBJ_EXT) util$(OBJ_EXT) mg$(OBJ_EXT) reentr$(OBJ_EXT)
++obj1 = $(madlyobj) $(mallocobj) gv$(OBJ_EXT) toke$(OBJ_EXT) perly$(OBJ_EXT) op$(OBJ_EXT) pad$(OBJ_EXT) regcomp$(OBJ_EXT) dump$(OBJ_EXT) util$(OBJ_EXT) mg$(OBJ_EXT) reentr$(OBJ_EXT) mro$(OBJ_EXT)
+ obj2 = hv$(OBJ_EXT) av$(OBJ_EXT) perl$(OBJ_EXT) run$(OBJ_EXT) pp_hot$(OBJ_EXT) sv$(OBJ_EXT) pp$(OBJ_EXT) scope$(OBJ_EXT) pp_ctl$(OBJ_EXT) pp_sys$(OBJ_EXT)
+ obj3 = doop$(OBJ_EXT) doio$(OBJ_EXT) regexec$(OBJ_EXT) utf8$(OBJ_EXT) taint$(OBJ_EXT) deb$(OBJ_EXT) universal$(OBJ_EXT) xsutils$(OBJ_EXT) globals$(OBJ_EXT) perlio$(OBJ_EXT) perlapi$(OBJ_EXT) numeric$(OBJ_EXT) mathoms$(OBJ_EXT) locale$(OBJ_EXT) pp_pack$(OBJ_EXT) pp_sort$(OBJ_EXT)
+ 
 === proto.h
 ==================================================================
---- proto.h	(/local/perl-current)	(revision 12336)
-+++ proto.h	(/local/perl-c3)	(revision 12336)
+--- proto.h	(/local/perl-current)	(revision 12419)
++++ proto.h	(/local/perl-c3)	(revision 12419)
 @@ -624,6 +624,15 @@
  PERL_CALLCONV GV*	Perl_gv_fetchfile(pTHX_ const char* name)
  			__attribute__nonnull__(pTHX_1);
  
-+PERL_CALLCONV AV*	Perl_linear_isa(pTHX_ HV* stash)
++PERL_CALLCONV AV*	Perl_mro_linear(pTHX_ HV* stash)
 +			__attribute__nonnull__(pTHX_1);
 +
-+PERL_CALLCONV AV*	Perl_linear_isa_c3(pTHX_ HV* stash)
++PERL_CALLCONV AV*	Perl_mro_linear_c3(pTHX_ HV* stash)
 +			__attribute__nonnull__(pTHX_1);
 +
-+PERL_CALLCONV AV*	Perl_linear_isa_dfs(pTHX_ HV* stash, I32 level)
++PERL_CALLCONV AV*	Perl_mro_linear_dfs(pTHX_ HV* stash, I32 level)
 +			__attribute__nonnull__(pTHX_1);
 +
  PERL_CALLCONV GV*	Perl_gv_fetchmeth(pTHX_ HV* stash, const char* name, STRLEN len, I32 level)
@@ -668,31 +598,30 @@
  
 === ext/B/t/concise-xs.t
 ==================================================================
---- ext/B/t/concise-xs.t	(/local/perl-current)	(revision 12336)
-+++ ext/B/t/concise-xs.t	(/local/perl-c3)	(revision 12336)
+--- ext/B/t/concise-xs.t	(/local/perl-current)	(revision 12419)
++++ ext/B/t/concise-xs.t	(/local/perl-c3)	(revision 12419)
 @@ -117,7 +117,7 @@
  use Carp;
  use Test::More tests => ( # per-pkg tests (function ct + require_ok)
  			  40 + 16	# Data::Dumper, Digest::MD5
 -			  + 517 + 236	# B::Deparse, B
-+			  + 517 + 243	# B::Deparse, B
++			  + 517 + 237	# B::Deparse, B
  			  + 595 + 190	# POSIX, IO::Socket
  			  + 3 * ($] > 5.009)
  			  + 16 * ($] >= 5.009003)
-@@ -157,7 +157,8 @@
+@@ -157,7 +157,7 @@
  		  formfeed end_av dowarn diehook defstash curstash
  		  cstring comppadlist check_av cchar cast_I32 bootstrap
  		  begin_av amagic_generation sub_generation address
 -		  unitcheck_av
-+		  unitcheck_av isa_generation enable_c3mro disable_c3mro
-+                  is_c3mro get_linear_isa get_linear_isa_c3 get_linear_isa_dfs
++		  unitcheck_av isa_generation
  		  )],
      },
  
 === ext/B/B.xs
 ==================================================================
---- ext/B/B.xs	(/local/perl-current)	(revision 12336)
-+++ ext/B/B.xs	(/local/perl-c3)	(revision 12336)
+--- ext/B/B.xs	(/local/perl-current)	(revision 12419)
++++ ext/B/B.xs	(/local/perl-c3)	(revision 12419)
 @@ -604,6 +604,7 @@
  #define B_main_start()	PL_main_start
  #define B_amagic_generation()	PL_amagic_generation
@@ -711,134 +640,674 @@
  B::AV
  B_comppadlist()
  
-@@ -709,6 +713,70 @@
-     OUTPUT:
- 	RETVAL
- 
-+AV*
-+get_linear_isa(classname)
-+        SV* classname
-+    CODE:
-+        HV* class_stash;
-+        class_stash = gv_stashsv(classname, 0);
-+        if(!class_stash) Perl_croak(aTHX_ "No such class!");
-+        RETVAL = Perl_linear_isa(class_stash);
-+    OUTPUT:
-+        RETVAL
-+
-+AV*
-+get_linear_isa_dfs(classname)
-+        SV* classname
-+    CODE:
-+        HV* class_stash;
-+        class_stash = gv_stashsv(classname, 0);
-+        if(!class_stash) Perl_croak(aTHX_ "No such class!");
-+        RETVAL = Perl_linear_isa_dfs(class_stash, 0);
-+    OUTPUT:
-+        RETVAL
-+
-+AV*
-+get_linear_isa_c3(classname)
-+        SV* classname
-+    CODE:
-+        HV* class_stash;
-+        class_stash = gv_stashsv(classname, 0);
-+        if(!class_stash) Perl_croak(aTHX_ "No such class!");
-+        RETVAL = Perl_linear_isa_c3(class_stash);
-+    OUTPUT:
-+        RETVAL
-+
-+void
-+enable_c3mro(classname)
-+        SV* classname
-+    CODE:
-+        HV* class_stash;
-+        class_stash = gv_stashsv(classname, 1);
-+        if(!class_stash) Perl_croak(aTHX_ "Cannot create class!");
-+        HvAUX(class_stash)->xhv_c3mro = TRUE;
-+	PL_sub_generation++;
-+
-+void
-+disable_c3mro(classname)
-+        SV* classname
-+    CODE:
-+        HV* class_stash;
-+        class_stash = gv_stashsv(classname, 1);
-+        if(!class_stash) Perl_croak(aTHX_ "Cannot create class!");
-+        HvAUX(class_stash)->xhv_c3mro = FALSE;
-+	PL_sub_generation++;
-+
-+bool
-+is_c3mro(classname)
-+        SV* classname
-+    CODE:
-+        HV* class_stash;
-+        class_stash = gv_stashsv(classname, 0);
-+        if(!class_stash) Perl_croak(aTHX_ "No such class!");
-+	RETVAL = HvC3MRO(class_stash);
-+    OUTPUT:
-+        RETVAL
-+        
- #define address(sv) PTR2IV(sv)
- 
- IV
 === ext/B/B.pm
 ==================================================================
---- ext/B/B.pm	(/local/perl-current)	(revision 12336)
-+++ ext/B/B.pm	(/local/perl-c3)	(revision 12336)
-@@ -23,6 +23,8 @@
+--- ext/B/B.pm	(/local/perl-current)	(revision 12419)
++++ ext/B/B.pm	(/local/perl-c3)	(revision 12419)
+@@ -23,6 +23,7 @@
  		parents comppadlist sv_undef compile_stats timing_info
  		begin_av init_av unitcheck_av check_av end_av regex_padav
  		dowarn defstash curstash warnhook diehook inc_gv
-+		isa_generation enable_c3mro disable_c3mro is_c3mro
-+                get_linear_isa get_linear_isa_c3 get_linear_isa_dfs
++		isa_generation
  		);
  
  sub OPf_KIDS ();
+=== ext/mro/mro.xs
+==================================================================
+--- ext/mro/mro.xs	(/local/perl-current)	(revision 12419)
++++ ext/mro/mro.xs	(/local/perl-c3)	(revision 12419)
+@@ -0,0 +1,90 @@
++/*	mro.xs
++ *
++ *	Copyright (c) 2006 Brandon L Black
++ *
++ *	You may distribute under the terms of either the GNU General Public
++ *	License or the Artistic License, as specified in the README file.
++ *
++ */
++
++#define PERL_NO_GET_CONTEXT
++#include "EXTERN.h"
++#include "perl.h"
++#include "XSUB.h"
++
++MODULE = mro	PACKAGE = mro
++
++AV*
++get_mro_linear(classname)
++        SV* classname
++    CODE:
++        HV* class_stash;
++        class_stash = gv_stashsv(classname, 0);
++        if(!class_stash) croak("No such class: '%"SVf"'!", classname);
++        RETVAL = mro_linear(class_stash);
++    OUTPUT:
++        RETVAL
++
++AV*
++get_mro_linear_dfs(classname)
++        SV* classname
++    CODE:
++        HV* class_stash;
++        class_stash = gv_stashsv(classname, 0);
++        if(!class_stash) croak("No such class: '%"SVf"'!", classname);
++        RETVAL = mro_linear_dfs(class_stash, 0);
++    OUTPUT:
++        RETVAL
++
++AV*
++get_mro_linear_c3(classname)
++        SV* classname
++    CODE:
++        HV* class_stash;
++        class_stash = gv_stashsv(classname, 0);
++        if(!class_stash) croak("No such class: '%"SVf"'!", classname);
++        RETVAL = mro_linear_c3(class_stash);
++    OUTPUT:
++        RETVAL
++
++void
++set_mro_dfs(classname)
++        SV* classname
++    CODE:
++        HV* class_stash;
++        class_stash = gv_stashsv(classname, 1);
++        if(!class_stash) croak("Cannot create class: '%"SVf"'!", classname);
++        HvAUX(class_stash)->xhv_mro = 0;
++	PL_sub_generation++;
++
++void
++set_mro_c3(classname)
++        SV* classname
++    CODE:
++        HV* class_stash;
++        class_stash = gv_stashsv(classname, 1);
++        if(!class_stash) croak("Cannot create class: '%"SVf"'!", classname);
++        HvAUX(class_stash)->xhv_mro = 1;
++	PL_sub_generation++;
++
++bool
++is_mro_dfs(classname)
++        SV* classname
++    CODE:
++        HV* class_stash;
++        class_stash = gv_stashsv(classname, 0);
++        if(!class_stash) croak("No such class: '%"SVf"'!", classname);
++	RETVAL = (HvAUX(class_stash)->xhv_mro == 0);
++    OUTPUT:
++        RETVAL
++
++bool
++is_mro_c3(classname)
++        SV* classname
++    CODE:
++        HV* class_stash;
++        class_stash = gv_stashsv(classname, 0);
++        if(!class_stash) croak("No such class: '%"SVf"'!", classname);
++	RETVAL = (HvAUX(class_stash)->xhv_mro == 1);
++    OUTPUT:
++        RETVAL
+=== ext/mro/Makefile.PL
+==================================================================
+--- ext/mro/Makefile.PL	(/local/perl-current)	(revision 12419)
++++ ext/mro/Makefile.PL	(/local/perl-c3)	(revision 12419)
+@@ -0,0 +1,35 @@
++use ExtUtils::MakeMaker;
++use Config;
++use File::Spec;
++
++my $e = $Config{'exe_ext'};
++my $o = $Config{'obj_ext'};
++my $exeout_flag = '-o ';
++if ($^O eq 'MSWin32') {
++    if ($Config{'cc'} =~ /^cl/i) {
++	$exeout_flag = '-Fe';
++    }
++    elsif ($Config{'cc'} =~ /^bcc/i) {
++	$exeout_flag = '-e';
++    }
++}
++
++WriteMakefile(
++    NAME	    => "mro",
++    VERSION_FROM    => "mro.pm",
++    MAN3PODS	    => {},
++    clean	    => {
++	FILES	    => "perl$e *$o mro.c *~"
++    }
++);
++
++package MY;
++
++sub post_constants {
++    "\nLIBS = $Config::Config{libs}\n"
++}
++
++sub upupfile {
++    File::Spec->catfile(File::Spec->updir,
++			File::Spec->updir, $_[0]);
++}
+=== ext/mro/mro.pm
+==================================================================
+--- ext/mro/mro.pm	(/local/perl-current)	(revision 12419)
++++ ext/mro/mro.pm	(/local/perl-c3)	(revision 12419)
+@@ -0,0 +1,91 @@
++#      mro.pm
++#
++#      Copyright (c) 2006 Brandon L Black
++#
++#      You may distribute under the terms of either the GNU General Public
++#      License or the Artistic License, as specified in the README file.
++#
++package mro;
++use strict;
++use warnings;
++
++our $VERSION = '0.01';
++
++use XSLoader ();
++
++sub import {
++    my $arg = $_[1];
++    if($arg) {
++        if($arg eq 'c3') {
++            set_mro_c3(scalar(caller));
++        }
++        elsif($arg eq 'dfs') {
++            set_mro_dfs(scalar(caller));
++        }
++    }
++}
++
++XSLoader::load 'mro';
++
++1;
++
++__END__
++
++=head1 NAME
++
++mro - Method Resolution Order
++
++=head1 SYNOPSIS
++
++	use mro; # just gain access to mro::* functions
++        use mro 'c3'; # enable C3 mro for this class
++        use mro 'dfs'; # enable DFS mro for this class (Perl default)
++
++=head1 DESCRIPTION
++
++TODO
++
++=head1 OVERVIEW
++
++TODO
++
++=head1 Functions
++
++All of these take a scalar classname as the only argument
++
++=head2 mro_linear
++
++Return an arrayref which is the linearized MRO of the given class.
++Uses whichever MRO is currently in effect for that class.
++
++=head2 mro_linear_dfs
++
++Return an arrayref which is the linearized MRO of the given classname.
++Uses the DFS (perl default) MRO algorithm.
++
++=head2 mro_linear_c3
++
++Return an arrayref which is the linearized MRO of the given class.
++Uses the C3 MRO algorithm.
++
++=head2 set_mro_dfs
++
++Sets the MRO of the given class to DFS (perl default).
++
++=head2 set_mro_c3
++
++Sets the MRO of the given class to C3.
++
++=head2 is_mro_dfs
++
++Return boolean indicating whether the given class is using the DFS (Perl default) MRO.
++
++=head2 is_mro_c3
++
++Return boolean indicating whether the given class is using the C3 MRO.
++
++=head1 AUTHOR
++
++Brandon L Black, C<blblack@gmail.com>
++
++=cut
+=== MANIFEST
+==================================================================
+--- MANIFEST	(/local/perl-current)	(revision 12419)
++++ MANIFEST	(/local/perl-c3)	(revision 12419)
+@@ -893,6 +893,9 @@
+ ext/MIME/Base64/t/quoted-print.t	See whether MIME::QuotedPrint works
+ ext/MIME/Base64/t/unicode.t	See whether MIME::Base64 works
+ ext/MIME/Base64/t/warn.t	See whether MIME::Base64 works
++ext/mro/Makefile.PL		mro extension
++ext/mro/mro.xs			mro extension
++ext/mro/mro.pm			mro extension
+ ext/NDBM_File/hints/cygwin.pl	Hint for NDBM_File for named architecture
+ ext/NDBM_File/hints/dec_osf.pl	Hint for NDBM_File for named architecture
+ ext/NDBM_File/hints/dynixptx.pl	Hint for NDBM_File for named architecture
+@@ -2792,6 +2795,7 @@
+ mpeix/mpeix_setjmp.c		MPE/iX port
+ mpeix/nm			MPE/iX port
+ mpeix/relink			MPE/iX port
++mro.c				Method Resolution Order code
+ myconfig.SH			Prints summary of the current configuration
+ NetWare/bat/Buildtype.bat	NetWare port
+ NetWare/bat/SetCodeWar.bat	NetWare port
+=== mro.c
+==================================================================
+--- mro.c	(/local/perl-current)	(revision 12419)
++++ mro.c	(/local/perl-c3)	(revision 12419)
+@@ -0,0 +1,362 @@
++/*    mro.c
++ *
++ *    Copyright (C) 2006 by Larry Wall and others
++ *
++ *    You may distribute under the terms of either the GNU General Public
++ *    License or the Artistic License, as specified in the README file.
++ *
++ */
++
++/*
++=head1 MRO Functions
++
++These functions are related to the method resolution order of perl classes
++
++=cut
++*/
++
++#include "EXTERN.h"
++#include "perl.h"
++
++/*
++=for apidoc mro_linear_dfs
++
++Returns the Depth-First Search linearization of @ISA
++the given stash.  The return value is a read-only AV*,
++and is cached based on C<PL_isa_generation>.
++
++=cut
++*/
++AV*
++Perl_mro_linear_dfs(pTHX_ HV *stash, I32 level) {
++    AV* retval;
++    GV** gvp;
++    GV* gv;
++    AV* av;
++    SV** svp;
++    I32 items;
++    AV* subrv;
++    SV** subrv_p;
++    I32 subrv_items;
++    const char* stashname;
++
++    assert(stash);
++    assert(HvAUX(stash));
++
++    stashname = HvNAME_get(stash);
++    if (!stashname)
++      Perl_croak(aTHX_
++		 "Can't linearize anonymous symbol table");
++
++    if (level > 100)
++	Perl_croak(aTHX_ "Recursive inheritance detected in package '%s'",
++	      stashname);
++
++    /* return the cached linearization if valid */
++    if((retval = HvAUX(stash)->xhv_mro_linear_dfs)
++       && HvAUX(stash)->xhv_mro_linear_dfs_gen == PL_isa_generation) {
++          SvREFCNT_inc_simple_void_NN(retval);
++          return retval;
++    }
++
++    /* make a new one */
++
++    if(retval) SvREFCNT_dec(retval);
++    HvAUX(stash)->xhv_mro_linear_dfs = retval = newAV();
++    HvAUX(stash)->xhv_mro_linear_dfs_gen = PL_isa_generation;
++    av_push(retval, newSVpv(stashname, 0)); /* add ourselves at the top */
++
++    gvp = (GV**)hv_fetchs(stash, "ISA", FALSE);
++    av = (gvp && (gv = *gvp) && gv != (GV*)&PL_sv_undef) ? GvAV(gv) : NULL;
++
++    if(av) {
++        svp = AvARRAY(av);
++        items = AvFILLp(av) + 1;
++        while (items--) {
++            SV* const sv = *svp++;
++            HV* const basestash = gv_stashsv(sv, FALSE);
++            if (!basestash) {
++                if (ckWARN(WARN_MISC))
++                    Perl_warner(aTHX_ packWARN(WARN_MISC), "Can't locate package %"SVf" for @%s::ISA",
++                        (void*)sv, stashname);
++                continue;
++            }
++            subrv = mro_linear_dfs(basestash, level + 1);
++            subrv_p = AvARRAY(subrv);
++            subrv_items = AvFILLp(subrv) + 1;
++            while(subrv_items--) {
++                SV* subsv = *subrv_p++;
++                SvREFCNT_inc_simple_void_NN(subsv);
++                av_push(retval, subsv);
++            }
++            SvREFCNT_dec(subrv);
++        }
++    }
++
++    SvREADONLY_on(retval);
++    SvREFCNT_inc_simple_void_NN(retval);
++    return retval;
++}
++
++/*
++=for apidoc mro_linear_c3
++
++Returns the C3 linearization of @ISA
++the given stash.  The return value is a read-only AV*,
++and is cached based on C<PL_isa_generation>.
++
++=cut
++*/
++AV*
++Perl_mro_linear_c3(pTHX_ HV *root) {
++    AV* retval;
++    GV** gvp;
++    GV* gv;
++    AV* crisa;
++    SV** svp;
++    const char* rootname;
++    AV* C3STACK;
++    HV* current_root;
++    AV* recurse_mergeout;
++    SV* isv;
++    HV* seen;
++
++    assert(root);
++    assert(HvAUX(root));
++
++    rootname = HvNAME_get(root);
++    if (!rootname)
++      Perl_croak(aTHX_
++		 "Can't linearize anonymous symbol table");
++
++    /* shortcut in the case root's linear isa is already cached */
++    if((retval = HvAUX(root)->xhv_mro_linear_c3)
++      && (HvAUX(root)->xhv_mro_linear_c3_gen == PL_isa_generation)) {
++        SvREFCNT_inc_simple_void_NN(retval);
++        return retval;
++    }
++
++    C3STACK = newAV(); /* our recursion-via-iteration stack ... */
++    current_root = root; /* the current stash being examined */
++    recurse_mergeout = newAV(); /* where we iteratively gather the results at */
++    isv = newSViv(0); /* index within @ISA for current_root */
++    seen = newHV();  /* this tracks infinite recursion in @ISA for us */
++    hv_store(seen, rootname, strlen(rootname), &PL_sv_yes, 0); /* obviously, we've seen "root" */
++
++    while(1) {
++        gvp = (GV**)hv_fetchs(current_root, "ISA", FALSE);
++        crisa = (gvp && (gv = *gvp) && gv != (GV*)&PL_sv_undef) ? GvAV(gv) : NULL;
++
++        if(crisa && SvIVX(isv) <= av_len(crisa)) {
++            AV* new_stack_entry;
++            SV* new_root_sv;
++            HV* new_root;
++            const char* new_root_name;
++            int new_root_len;
++            svp = av_fetch(crisa, SvIVX(isv), 0);
++            assert(svp);
++            new_root_sv = *svp;
++            new_root = gv_stashsv(new_root_sv, FALSE);
++            assert(new_root);
++            sv_inc(isv);
++
++            new_root_name = HvNAME_get(new_root);
++            new_root_len = HvNAMELEN_get(new_root);
++            if(hv_exists(seen, new_root_name, new_root_len)) {
++                Perl_croak(aTHX_ "infinite recursion detected");
++            }
++            hv_store(seen, new_root_name, new_root_len, &PL_sv_yes, 0);
++
++            new_stack_entry = newAV();
++            av_push(new_stack_entry, (SV*)current_root);
++            av_push(new_stack_entry, (SV*)recurse_mergeout);
++            av_push(new_stack_entry, isv);
++            av_push(C3STACK, (SV*)new_stack_entry);
++
++            current_root = new_root;
++            recurse_mergeout = newAV();
++            isv = newSViv(0);
++            continue;
++        }
++
++        const char* current_root_name = HvNAME_get(current_root);
++        int current_root_len = HvNAMELEN_get(current_root);
++        SV* current_root_name_sv = newSVpv(current_root_name, current_root_len);
++        hv_delete(seen, current_root_name, current_root_len, G_DISCARD);
++
++        AV* res = HvAUX(current_root)->xhv_mro_linear_c3;
++        if(!res || HvAUX(current_root)->xhv_mro_linear_c3_gen != PL_isa_generation) {
++            if(res) SvREFCNT_dec(res);
++            res = newAV();
++            HV* tails = newHV();
++            AV* seqs = newAV();
++            av_push(res, current_root_name_sv);
++
++            SV** avptr = AvARRAY(recurse_mergeout);
++            I32 items = AvFILLp(recurse_mergeout) + 1;
++            while(items--) {
++                AV* oseq = (AV*)*avptr++;
++                AV* seq = newAV();
++                SV** seqptr = AvARRAY(oseq);
++                I32 seqitems = AvFILLp(oseq) + 1;
++                while(seqitems--) {
++                    SV* tempsv = *seqptr++;
++                    SvREFCNT_inc_simple_void_NN(tempsv);
++                    av_push(seq, tempsv);
++                }
++                av_push(seqs, (SV*)seq);
++                seqptr = AvARRAY(seq) + 1;
++                seqitems = AvFILLp(seq);
++                while(seqitems--) {
++                    SV* seqitem = *(seqptr++);
++                    HE* he = hv_fetch_ent(tails, seqitem, 0, 0);
++                    if(!he) {
++                        hv_store_ent(tails, seqitem, newSViv(1), 0);
++                    }
++                    else {
++                        SV* val = HeVAL(he);
++                        sv_inc(val);
++                    }
++                }
++            }
++
++            if(crisa) {
++                AV* crisa_seq = newAV();
++                SV** seqptr = AvARRAY(crisa);
++                I32 seqitems = AvFILLp(crisa) + 1;
++                while(seqitems--) {
++                    SV* tempsv = *seqptr++;
++                    SvREFCNT_inc_simple_void_NN(tempsv);
++                    av_push(crisa_seq, tempsv);
++                }
++
++                seqitems = AvFILLp(crisa_seq);
++                if(seqitems >= 0) av_push(seqs, (SV*)crisa_seq);
++                if(seqitems > 0) {
++                    seqptr = AvARRAY(crisa_seq) + 1;
++                    while(seqitems--) {
++                        SV* seqitem = *(seqptr++);
++                        HE* he = hv_fetch_ent(tails, seqitem, 0, 0);
++                        if(!he) {
++                            hv_store_ent(tails, seqitem, newSViv(1), 0);
++                        }
++                        else {
++                            SV* val = HeVAL(he);
++                            sv_inc(val);
++                        }
++                    }
++                }
++            }
++
++            while(1) {
++                SV* seqhead = NULL;
++                SV* cand = NULL;
++                SV* winner = NULL;
++                SV* val;
++                HE* tail_entry;
++                AV* seq;
++                avptr = AvARRAY(seqs);
++                items = AvFILLp(seqs)+1;
++                while(items--) {
++                    seq = (AV*)*avptr++;
++                    if(AvFILLp(seq) < 0) continue;
++                    svp = av_fetch(seq, 0, 0);
++                    seqhead = *svp;
++                    if(!winner) {
++                        cand = seqhead;
++                        if((tail_entry = hv_fetch_ent(tails, cand, 0, 0))
++                           && (val = HeVAL(tail_entry))
++                           && SvIVx(val) > 0)
++                               continue;
++                        winner = cand;
++                        SvREFCNT_inc_simple_void_NN(cand);
++                        av_push(res, cand);
++                    }
++                    if(!sv_cmp(seqhead, winner)) {
++
++                        /* this is basically shift(@seq) in void context */
++                        SvREFCNT_dec(*AvARRAY(seq));
++                        *AvARRAY(seq) = &PL_sv_undef;
++                        AvARRAY(seq) = AvARRAY(seq) + 1;
++                        AvMAX(seq)--;
++                        AvFILLp(seq)--;
++
++                        if(AvFILLp(seq) < 0) continue;
++                        svp = av_fetch(seq, 0, 0);
++                        seqhead = *svp;
++                        tail_entry = hv_fetch_ent(tails, seqhead, 0, 0);
++                        val = HeVAL(tail_entry);
++                        sv_dec(val);
++                    }
++                }
++                if(!cand) break;
++                if(!winner) Perl_croak(aTHX_ "Inconsistent hierarchy XXX");
++            }
++            SvREADONLY_on(res);
++            HvAUX(current_root)->xhv_mro_linear_c3_gen = PL_isa_generation;
++            HvAUX(current_root)->xhv_mro_linear_c3 = res;
++            SvREFCNT_dec(tails);
++            SvREFCNT_dec(seqs);
++        }
++
++        SvREFCNT_dec(recurse_mergeout);
++        SvREFCNT_dec(isv);
++
++        if(AvFILLp(C3STACK) < 0) {
++            /* clean up our temporaries */
++            SvREFCNT_dec(C3STACK);
++            SvREFCNT_dec(seen);
++            SvREFCNT_inc_simple_void_NN(res);
++            return res;
++        }
++
++        AV* tempav = (AV*)av_pop(C3STACK);
++        svp = av_fetch(tempav, 0, 0);
++        current_root = (HV*)*svp;
++        svp = av_fetch(tempav, 1, 0);
++        recurse_mergeout = (AV*)*svp;
++        svp = av_fetch(tempav, 2, 0);
++        isv = *svp;
++        SvREFCNT_inc_simple_void_NN(current_root);
++        SvREFCNT_inc_simple_void_NN(recurse_mergeout);
++        SvREFCNT_inc_simple_void_NN(isv);
++        SvREFCNT_dec(tempav);
++
++        SvREFCNT_inc_simple_void_NN(res);
++        av_push(recurse_mergeout, (SV*)res);
++    }
++}
++
++/*
++=for apidoc mro_linear
++
++Returns either C<mro_linear_c3> or C<mro_linear_dfs> for
++the given stash, dependant upon which MRO is in effect
++for that stash.  The return value is a read-only AV*,
++and is cached based on C<PL_isa_generation>.
++
++=cut
++*/
++AV*
++Perl_mro_linear(pTHX_ HV *stash)
++{
++    assert(stash);
++    assert(HvAUX(stash));
++    /* ->xhv_mro values: 0 is dfs, 1 is c3
++       this code must be updated if a 3rd one ever exists */
++    if(!HvAUX(stash)->xhv_mro) {
++        return mro_linear_dfs(stash, 0);
++    } else {
++        return mro_linear_c3(stash);
++    }
++}
++
++/*
++ * Local variables:
++ * c-indentation-style: bsd
++ * c-basic-offset: 4
++ * indent-tabs-mode: t
++ * End:
++ *
++ * ex: set ts=8 sts=4 sw=4 noet:
++ */
 === hv.c
 ==================================================================
---- hv.c	(/local/perl-current)	(revision 12336)
-+++ hv.c	(/local/perl-c3)	(revision 12336)
+--- hv.c	(/local/perl-current)	(revision 12419)
++++ hv.c	(/local/perl-c3)	(revision 12419)
 @@ -1895,6 +1895,11 @@
      iter->xhv_eiter = NULL;	/* HvEITER(hv) = NULL */
      iter->xhv_name = 0;
      iter->xhv_backreferences = 0;
-+    iter->xhv_dfs_linear_isa = NULL;
-+    iter->xhv_dfs_isa_gen = 0;
-+    iter->xhv_c3_linear_isa = NULL;
-+    iter->xhv_c3_isa_gen = 0;
-+    iter->xhv_c3mro = 0;
++    iter->xhv_mro_linear_dfs = NULL;
++    iter->xhv_mro_linear_dfs_gen = 0;
++    iter->xhv_mro_linear_c3 = NULL;
++    iter->xhv_mro_linear_c3_gen = 0;
++    iter->xhv_mro = 0;
      return iter;
  }
  
 === hv.h
 ==================================================================
---- hv.h	(/local/perl-current)	(revision 12336)
-+++ hv.h	(/local/perl-c3)	(revision 12336)
+--- hv.h	(/local/perl-current)	(revision 12419)
++++ hv.h	(/local/perl-c3)	(revision 12419)
 @@ -44,6 +44,11 @@
      AV		*xhv_backreferences; /* back references for weak references */
      HE		*xhv_eiter;	/* current entry of iterator */
      I32		xhv_riter;	/* current root of iterator */
-+    AV          *xhv_dfs_linear_isa; /* cached dfs @ISA linearization */
-+    AV          *xhv_c3_linear_isa; /* cached c3 @ISA linearization */
-+    U32         xhv_dfs_isa_gen;    /* PL_isa_generation for above */
-+    U32         xhv_c3_isa_gen;    /* PL_isa_generation for above */
-+    bool        xhv_c3mro;      /* use c3 mro for this class */
++    AV          *xhv_mro_linear_dfs; /* cached dfs @ISA linearization */
++    AV          *xhv_mro_linear_c3; /* cached c3 @ISA linearization */
++    U32         xhv_mro_linear_dfs_gen;    /* PL_isa_generation for above */
++    U32         xhv_mro_linear_c3_gen;    /* PL_isa_generation for above */
++    U32         xhv_mro;      /* which mro is in use? 0 == dfs, 1 == c3, .... */
  };
  
  /* hash structure: */
-@@ -235,6 +240,7 @@
- #define HvRITER_get(hv)	(SvOOK(hv) ? HvAUX(hv)->xhv_riter : -1)
- #define HvEITER_get(hv)	(SvOOK(hv) ? HvAUX(hv)->xhv_eiter : 0)
- #define HvNAME(hv)	HvNAME_get(hv)
-+#define HvC3MRO(hv)     (SvOOK(hv) ? HvAUX(hv)->xhv_c3mro : 0)
- /* FIXME - all of these should use a UTF8 aware API, which should also involve
-    getting the length. */
- /* This macro may go away without notice.  */
 === mg.c
 ==================================================================
---- mg.c	(/local/perl-current)	(revision 12336)
-+++ mg.c	(/local/perl-c3)	(revision 12336)
+--- mg.c	(/local/perl-current)	(revision 12419)
++++ mg.c	(/local/perl-c3)	(revision 12419)
 @@ -1511,6 +1511,7 @@
      PERL_UNUSED_ARG(sv);
      PERL_UNUSED_ARG(mg);
@@ -849,8 +1318,8 @@
  
 === intrpvar.h
 ==================================================================
---- intrpvar.h	(/local/perl-current)	(revision 12336)
-+++ intrpvar.h	(/local/perl-c3)	(revision 12336)
+--- intrpvar.h	(/local/perl-current)	(revision 12419)
++++ intrpvar.h	(/local/perl-c3)	(revision 12419)
 @@ -560,6 +560,7 @@
  PERLVARI(Iutf8cache, I8, 1)	/* Is the utf8 caching code enabled? */
  #endif
@@ -861,9 +1330,9 @@
   * (Don't forget to add your variable also to perl_clone()!)
 === sv.c
 ==================================================================
---- sv.c	(/local/perl-current)	(revision 12336)
-+++ sv.c	(/local/perl-c3)	(revision 12336)
-@@ -10983,6 +10983,7 @@
+--- sv.c	(/local/perl-current)	(revision 12419)
++++ sv.c	(/local/perl-c3)	(revision 12419)
+@@ -10985,6 +10985,7 @@
      PL_initav		= av_dup_inc(proto_perl->Iinitav, param);
  
      PL_sub_generation	= proto_perl->Isub_generation;
@@ -873,15 +1342,15 @@
      PL_forkprocess	= proto_perl->Iforkprocess;
 === embed.fnc
 ==================================================================
---- embed.fnc	(/local/perl-current)	(revision 12336)
-+++ embed.fnc	(/local/perl-c3)	(revision 12336)
+--- embed.fnc	(/local/perl-current)	(revision 12419)
++++ embed.fnc	(/local/perl-c3)	(revision 12419)
 @@ -278,6 +278,9 @@
  Apmb	|void	|gv_efullname3	|NN SV* sv|NN const GV* gv|NULLOK const char* prefix
  Ap	|void	|gv_efullname4	|NN SV* sv|NN const GV* gv|NULLOK const char* prefix|bool keepmain
  Ap	|GV*	|gv_fetchfile	|NN const char* name
-+pM	|AV*	|linear_isa	|NN HV* stash
-+pM	|AV*	|linear_isa_c3	|NN HV* stash
-+pM	|AV*	|linear_isa_dfs	|NN HV* stash|I32 level
++ApM	|AV*	|mro_linear	|NN HV* stash
++ApM	|AV*	|mro_linear_c3	|NN HV* stash
++ApM	|AV*	|mro_linear_dfs	|NN HV* stash|I32 level
  Apd	|GV*	|gv_fetchmeth	|NULLOK HV* stash|NN const char* name|STRLEN len|I32 level
  Apd	|GV*	|gv_fetchmeth_autoload	|NULLOK HV* stash|NN const char* name|STRLEN len|I32 level
  Apdmb	|GV*	|gv_fetchmethod	|NULLOK HV* stash|NN const char* name
@@ -889,5 +1358,5 @@
 Property changes on: 
 ___________________________________________________________________
 Name: svk:merge
- +2679d79f-d018-0410-a353-0f906ad2929c:/local/perl-current:12331
+ +2679d79f-d018-0410-a353-0f906ad2929c:/local/perl-current:12418
 
