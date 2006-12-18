@@ -1,7 +1,7 @@
 === Makefile.micro
 ==================================================================
---- Makefile.micro	(/local/perl-current)	(revision 12457)
-+++ Makefile.micro	(/local/perl-c3)	(revision 12457)
+--- Makefile.micro	(/local/perl-current)	(revision 12460)
++++ Makefile.micro	(/local/perl-c3)	(revision 12460)
 @@ -9,7 +9,7 @@
  all:	microperl
  
@@ -23,8 +23,8 @@
  
 === embed.h
 ==================================================================
---- embed.h	(/local/perl-current)	(revision 12457)
-+++ embed.h	(/local/perl-c3)	(revision 12457)
+--- embed.h	(/local/perl-current)	(revision 12460)
++++ embed.h	(/local/perl-c3)	(revision 12460)
 @@ -266,6 +266,9 @@
  #define gv_efullname		Perl_gv_efullname
  #define gv_efullname4		Perl_gv_efullname4
@@ -47,8 +47,8 @@
  #define gv_fetchmethod_autoload(a,b,c)	Perl_gv_fetchmethod_autoload(aTHX_ a,b,c)
 === embedvar.h
 ==================================================================
---- embedvar.h	(/local/perl-current)	(revision 12457)
-+++ embedvar.h	(/local/perl-c3)	(revision 12457)
+--- embedvar.h	(/local/perl-current)	(revision 12460)
++++ embedvar.h	(/local/perl-c3)	(revision 12460)
 @@ -229,6 +229,7 @@
  #define PL_incgv		(vTHX->Iincgv)
  #define PL_initav		(vTHX->Iinitav)
@@ -67,8 +67,8 @@
  #define PL_Ilast_lop_op		PL_last_lop_op
 === pod/perlapi.pod
 ==================================================================
---- pod/perlapi.pod	(/local/perl-current)	(revision 12457)
-+++ pod/perlapi.pod	(/local/perl-c3)	(revision 12457)
+--- pod/perlapi.pod	(/local/perl-current)	(revision 12460)
++++ pod/perlapi.pod	(/local/perl-c3)	(revision 12460)
 @@ -1280,7 +1280,7 @@
  The argument C<level> should be either 0 or -1.  If C<level==0>, as a
  side-effect creates a glob with the given C<name> in the given C<stash>
@@ -80,8 +80,8 @@
  GV returned from C<gv_fetchmeth> may be a method cache entry, which is not
 === global.sym
 ==================================================================
---- global.sym	(/local/perl-current)	(revision 12457)
-+++ global.sym	(/local/perl-c3)	(revision 12457)
+--- global.sym	(/local/perl-current)	(revision 12460)
++++ global.sym	(/local/perl-c3)	(revision 12460)
 @@ -133,6 +133,9 @@
  Perl_gv_efullname3
  Perl_gv_efullname4
@@ -94,8 +94,8 @@
  Perl_gv_fetchmethod
 === universal.c
 ==================================================================
---- universal.c	(/local/perl-current)	(revision 12457)
-+++ universal.c	(/local/perl-c3)	(revision 12457)
+--- universal.c	(/local/perl-current)	(revision 12460)
++++ universal.c	(/local/perl-c3)	(revision 12460)
 @@ -36,12 +36,10 @@
               int len, int level)
  {
@@ -207,8 +207,8 @@
  
 === gv.c
 ==================================================================
---- gv.c	(/local/perl-current)	(revision 12457)
-+++ gv.c	(/local/perl-c3)	(revision 12457)
+--- gv.c	(/local/perl-current)	(revision 12460)
++++ gv.c	(/local/perl-c3)	(revision 12460)
 @@ -298,7 +298,7 @@
  The argument C<level> should be either 0 or -1.  If C<level==0>, as a
  side-effect creates a glob with the given C<name> in the given C<stash>
@@ -458,8 +458,8 @@
      return 0;
 === perlapi.h
 ==================================================================
---- perlapi.h	(/local/perl-current)	(revision 12457)
-+++ perlapi.h	(/local/perl-c3)	(revision 12457)
+--- perlapi.h	(/local/perl-current)	(revision 12460)
++++ perlapi.h	(/local/perl-c3)	(revision 12460)
 @@ -336,6 +336,8 @@
  #define PL_initav		(*Perl_Iinitav_ptr(aTHX))
  #undef  PL_inplace
@@ -471,8 +471,8 @@
  #undef  PL_last_lop
 === win32/Makefile
 ==================================================================
---- win32/Makefile	(/local/perl-current)	(revision 12457)
-+++ win32/Makefile	(/local/perl-c3)	(revision 12457)
+--- win32/Makefile	(/local/perl-current)	(revision 12460)
++++ win32/Makefile	(/local/perl-c3)	(revision 12460)
 @@ -644,6 +644,7 @@
  		..\dump.c	\
  		..\globals.c	\
@@ -483,8 +483,8 @@
  		..\mathoms.c    \
 === win32/makefile.mk
 ==================================================================
---- win32/makefile.mk	(/local/perl-current)	(revision 12457)
-+++ win32/makefile.mk	(/local/perl-c3)	(revision 12457)
+--- win32/makefile.mk	(/local/perl-current)	(revision 12460)
++++ win32/makefile.mk	(/local/perl-c3)	(revision 12460)
 @@ -813,6 +813,7 @@
  		..\dump.c	\
  		..\globals.c	\
@@ -495,8 +495,8 @@
  		..\mathoms.c    \
 === win32/Makefile.ce
 ==================================================================
---- win32/Makefile.ce	(/local/perl-current)	(revision 12457)
-+++ win32/Makefile.ce	(/local/perl-c3)	(revision 12457)
+--- win32/Makefile.ce	(/local/perl-current)	(revision 12460)
++++ win32/Makefile.ce	(/local/perl-c3)	(revision 12460)
 @@ -571,6 +571,7 @@
  		..\dump.c	\
  		..\globals.c	\
@@ -515,8 +515,8 @@
  $(DLLDIR)\mathoms.obj \
 === NetWare/Makefile
 ==================================================================
---- NetWare/Makefile	(/local/perl-current)	(revision 12457)
-+++ NetWare/Makefile	(/local/perl-c3)	(revision 12457)
+--- NetWare/Makefile	(/local/perl-current)	(revision 12460)
++++ NetWare/Makefile	(/local/perl-c3)	(revision 12460)
 @@ -701,6 +701,7 @@
  		..\dump.c	\
  		..\globals.c	\
@@ -527,8 +527,8 @@
                  ..\mathoms.c    \
 === vms/descrip_mms.template
 ==================================================================
---- vms/descrip_mms.template	(/local/perl-current)	(revision 12457)
-+++ vms/descrip_mms.template	(/local/perl-c3)	(revision 12457)
+--- vms/descrip_mms.template	(/local/perl-current)	(revision 12460)
++++ vms/descrip_mms.template	(/local/perl-c3)	(revision 12460)
 @@ -279,13 +279,13 @@
  
  #### End of system configuration section. ####
@@ -556,8 +556,8 @@
  locale$(O) : locale.c $(h)
 === Makefile.SH
 ==================================================================
---- Makefile.SH	(/local/perl-current)	(revision 12457)
-+++ Makefile.SH	(/local/perl-c3)	(revision 12457)
+--- Makefile.SH	(/local/perl-current)	(revision 12460)
++++ Makefile.SH	(/local/perl-c3)	(revision 12460)
 @@ -364,7 +364,7 @@
  h5 = utf8.h warnings.h
  h = $(h1) $(h2) $(h3) $(h4) $(h5)
@@ -578,8 +578,8 @@
  
 === proto.h
 ==================================================================
---- proto.h	(/local/perl-current)	(revision 12457)
-+++ proto.h	(/local/perl-c3)	(revision 12457)
+--- proto.h	(/local/perl-current)	(revision 12460)
++++ proto.h	(/local/perl-c3)	(revision 12460)
 @@ -624,6 +624,15 @@
  PERL_CALLCONV GV*	Perl_gv_fetchfile(pTHX_ const char* name)
  			__attribute__nonnull__(pTHX_1);
@@ -598,8 +598,8 @@
  
 === ext/B/t/concise-xs.t
 ==================================================================
---- ext/B/t/concise-xs.t	(/local/perl-current)	(revision 12457)
-+++ ext/B/t/concise-xs.t	(/local/perl-c3)	(revision 12457)
+--- ext/B/t/concise-xs.t	(/local/perl-current)	(revision 12460)
++++ ext/B/t/concise-xs.t	(/local/perl-c3)	(revision 12460)
 @@ -117,7 +117,7 @@
  use Carp;
  use Test::More tests => ( # per-pkg tests (function ct + require_ok)
@@ -620,8 +620,8 @@
  
 === ext/B/B.xs
 ==================================================================
---- ext/B/B.xs	(/local/perl-current)	(revision 12457)
-+++ ext/B/B.xs	(/local/perl-c3)	(revision 12457)
+--- ext/B/B.xs	(/local/perl-current)	(revision 12460)
++++ ext/B/B.xs	(/local/perl-c3)	(revision 12460)
 @@ -604,6 +604,7 @@
  #define B_main_start()	PL_main_start
  #define B_amagic_generation()	PL_amagic_generation
@@ -642,8 +642,8 @@
  
 === ext/B/B.pm
 ==================================================================
---- ext/B/B.pm	(/local/perl-current)	(revision 12457)
-+++ ext/B/B.pm	(/local/perl-c3)	(revision 12457)
+--- ext/B/B.pm	(/local/perl-current)	(revision 12460)
++++ ext/B/B.pm	(/local/perl-c3)	(revision 12460)
 @@ -23,6 +23,7 @@
  		parents comppadlist sv_undef compile_stats timing_info
  		begin_av init_av unitcheck_av check_av end_av regex_padav
@@ -654,8 +654,8 @@
  sub OPf_KIDS ();
 === ext/mro/mro.xs
 ==================================================================
---- ext/mro/mro.xs	(/local/perl-current)	(revision 12457)
-+++ ext/mro/mro.xs	(/local/perl-c3)	(revision 12457)
+--- ext/mro/mro.xs	(/local/perl-current)	(revision 12460)
++++ ext/mro/mro.xs	(/local/perl-c3)	(revision 12460)
 @@ -0,0 +1,90 @@
 +/*	mro.xs
 + *
@@ -749,8 +749,8 @@
 +        RETVAL
 === ext/mro/Makefile.PL
 ==================================================================
---- ext/mro/Makefile.PL	(/local/perl-current)	(revision 12457)
-+++ ext/mro/Makefile.PL	(/local/perl-c3)	(revision 12457)
+--- ext/mro/Makefile.PL	(/local/perl-current)	(revision 12460)
++++ ext/mro/Makefile.PL	(/local/perl-c3)	(revision 12460)
 @@ -0,0 +1,35 @@
 +use ExtUtils::MakeMaker;
 +use Config;
@@ -789,8 +789,8 @@
 +}
 === ext/mro/mro.pm
 ==================================================================
---- ext/mro/mro.pm	(/local/perl-current)	(revision 12457)
-+++ ext/mro/mro.pm	(/local/perl-c3)	(revision 12457)
+--- ext/mro/mro.pm	(/local/perl-current)	(revision 12460)
++++ ext/mro/mro.pm	(/local/perl-c3)	(revision 12460)
 @@ -0,0 +1,91 @@
 +#      mro.pm
 +#
@@ -885,8 +885,8 @@
 +=cut
 === MANIFEST
 ==================================================================
---- MANIFEST	(/local/perl-current)	(revision 12457)
-+++ MANIFEST	(/local/perl-c3)	(revision 12457)
+--- MANIFEST	(/local/perl-current)	(revision 12460)
++++ MANIFEST	(/local/perl-c3)	(revision 12460)
 @@ -893,6 +893,9 @@
  ext/MIME/Base64/t/quoted-print.t	See whether MIME::QuotedPrint works
  ext/MIME/Base64/t/unicode.t	See whether MIME::Base64 works
@@ -907,8 +907,8 @@
  NetWare/bat/SetCodeWar.bat	NetWare port
 === mro.c
 ==================================================================
---- mro.c	(/local/perl-current)	(revision 12457)
-+++ mro.c	(/local/perl-c3)	(revision 12457)
+--- mro.c	(/local/perl-current)	(revision 12460)
++++ mro.c	(/local/perl-c3)	(revision 12460)
 @@ -0,0 +1,278 @@
 +/*    mro.c
 + *
@@ -1190,8 +1190,8 @@
 + */
 === hv.c
 ==================================================================
---- hv.c	(/local/perl-current)	(revision 12457)
-+++ hv.c	(/local/perl-c3)	(revision 12457)
+--- hv.c	(/local/perl-current)	(revision 12460)
++++ hv.c	(/local/perl-c3)	(revision 12460)
 @@ -1895,6 +1895,11 @@
      iter->xhv_eiter = NULL;	/* HvEITER(hv) = NULL */
      iter->xhv_name = 0;
@@ -1206,8 +1206,8 @@
  
 === hv.h
 ==================================================================
---- hv.h	(/local/perl-current)	(revision 12457)
-+++ hv.h	(/local/perl-c3)	(revision 12457)
+--- hv.h	(/local/perl-current)	(revision 12460)
++++ hv.h	(/local/perl-c3)	(revision 12460)
 @@ -44,6 +44,11 @@
      AV		*xhv_backreferences; /* back references for weak references */
      HE		*xhv_eiter;	/* current entry of iterator */
@@ -1222,9 +1222,9 @@
  /* hash structure: */
 === mg.c
 ==================================================================
---- mg.c	(/local/perl-current)	(revision 12457)
-+++ mg.c	(/local/perl-c3)	(revision 12457)
-@@ -1511,6 +1511,7 @@
+--- mg.c	(/local/perl-current)	(revision 12460)
++++ mg.c	(/local/perl-c3)	(revision 12460)
+@@ -1517,6 +1517,7 @@
      PERL_UNUSED_ARG(sv);
      PERL_UNUSED_ARG(mg);
      PL_sub_generation++;
@@ -1234,8 +1234,8 @@
  
 === intrpvar.h
 ==================================================================
---- intrpvar.h	(/local/perl-current)	(revision 12457)
-+++ intrpvar.h	(/local/perl-c3)	(revision 12457)
+--- intrpvar.h	(/local/perl-current)	(revision 12460)
++++ intrpvar.h	(/local/perl-c3)	(revision 12460)
 @@ -558,6 +558,7 @@
  PERLVARI(Iutf8cache, I8, 1)	/* Is the utf8 caching code enabled? */
  #endif
@@ -1246,8 +1246,8 @@
   * (Don't forget to add your variable also to perl_clone()!)
 === sv.c
 ==================================================================
---- sv.c	(/local/perl-current)	(revision 12457)
-+++ sv.c	(/local/perl-c3)	(revision 12457)
+--- sv.c	(/local/perl-current)	(revision 12460)
++++ sv.c	(/local/perl-c3)	(revision 12460)
 @@ -10985,6 +10985,7 @@
      PL_initav		= av_dup_inc(proto_perl->Iinitav, param);
  
@@ -1258,8 +1258,8 @@
      PL_forkprocess	= proto_perl->Iforkprocess;
 === embed.fnc
 ==================================================================
---- embed.fnc	(/local/perl-current)	(revision 12457)
-+++ embed.fnc	(/local/perl-c3)	(revision 12457)
+--- embed.fnc	(/local/perl-current)	(revision 12460)
++++ embed.fnc	(/local/perl-c3)	(revision 12460)
 @@ -278,6 +278,9 @@
  Apmb	|void	|gv_efullname3	|NN SV* sv|NN const GV* gv|NULLOK const char* prefix
  Ap	|void	|gv_efullname4	|NN SV* sv|NN const GV* gv|NULLOK const char* prefix|bool keepmain
@@ -1274,5 +1274,5 @@
 Property changes on: 
 ___________________________________________________________________
 Name: svk:merge
- +2679d79f-d018-0410-a353-0f906ad2929c:/local/perl-current:12453
+ +2679d79f-d018-0410-a353-0f906ad2929c:/local/perl-current:12459
 
