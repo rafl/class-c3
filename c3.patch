@@ -1,7 +1,7 @@
 === Makefile.micro
 ==================================================================
---- Makefile.micro	(/local/perl-current)	(revision 12599)
-+++ Makefile.micro	(/local/perl-c3)	(revision 12599)
+--- Makefile.micro	(/local/perl-current)	(revision 12652)
++++ Makefile.micro	(/local/perl-c3)	(revision 12652)
 @@ -9,7 +9,7 @@
  all:	microperl
  
@@ -23,8 +23,8 @@
  
 === embed.h
 ==================================================================
---- embed.h	(/local/perl-current)	(revision 12599)
-+++ embed.h	(/local/perl-c3)	(revision 12599)
+--- embed.h	(/local/perl-current)	(revision 12652)
++++ embed.h	(/local/perl-c3)	(revision 12652)
 @@ -266,6 +266,10 @@
  #define gv_efullname		Perl_gv_efullname
  #define gv_efullname4		Perl_gv_efullname4
@@ -36,7 +36,7 @@
  #define gv_fetchmeth		Perl_gv_fetchmeth
  #define gv_fetchmeth_autoload	Perl_gv_fetchmeth_autoload
  #define gv_fetchmethod_autoload	Perl_gv_fetchmethod_autoload
-@@ -2474,6 +2478,10 @@
+@@ -2473,6 +2477,10 @@
  #define gv_efullname(a,b)	Perl_gv_efullname(aTHX_ a,b)
  #define gv_efullname4(a,b,c,d)	Perl_gv_efullname4(aTHX_ a,b,c,d)
  #define gv_fetchfile(a)		Perl_gv_fetchfile(aTHX_ a)
@@ -49,8 +49,8 @@
  #define gv_fetchmethod_autoload(a,b,c)	Perl_gv_fetchmethod_autoload(aTHX_ a,b,c)
 === embedvar.h
 ==================================================================
---- embedvar.h	(/local/perl-current)	(revision 12599)
-+++ embedvar.h	(/local/perl-c3)	(revision 12599)
+--- embedvar.h	(/local/perl-current)	(revision 12652)
++++ embedvar.h	(/local/perl-c3)	(revision 12652)
 @@ -227,6 +227,7 @@
  #define PL_incgv		(vTHX->Iincgv)
  #define PL_initav		(vTHX->Iinitav)
@@ -69,9 +69,9 @@
  #define PL_Ilast_lop_op		PL_last_lop_op
 === pod/perlapi.pod
 ==================================================================
---- pod/perlapi.pod	(/local/perl-current)	(revision 12599)
-+++ pod/perlapi.pod	(/local/perl-c3)	(revision 12599)
-@@ -1280,7 +1280,7 @@
+--- pod/perlapi.pod	(/local/perl-current)	(revision 12652)
++++ pod/perlapi.pod	(/local/perl-c3)	(revision 12652)
+@@ -1284,7 +1284,7 @@
  The argument C<level> should be either 0 or -1.  If C<level==0>, as a
  side-effect creates a glob with the given C<name> in the given C<stash>
  which in the case of success contains an alias for the subroutine, and sets
@@ -82,8 +82,8 @@
  GV returned from C<gv_fetchmeth> may be a method cache entry, which is not
 === global.sym
 ==================================================================
---- global.sym	(/local/perl-current)	(revision 12599)
-+++ global.sym	(/local/perl-c3)	(revision 12599)
+--- global.sym	(/local/perl-current)	(revision 12652)
++++ global.sym	(/local/perl-c3)	(revision 12652)
 @@ -133,6 +133,10 @@
  Perl_gv_efullname3
  Perl_gv_efullname4
@@ -97,8 +97,8 @@
  Perl_gv_fetchmethod
 === universal.c
 ==================================================================
---- universal.c	(/local/perl-current)	(revision 12599)
-+++ universal.c	(/local/perl-c3)	(revision 12599)
+--- universal.c	(/local/perl-current)	(revision 12652)
++++ universal.c	(/local/perl-c3)	(revision 12652)
 @@ -36,12 +36,10 @@
               int len, int level)
  {
@@ -149,7 +149,7 @@
 +	    if (ckWARN(WARN_MISC))
 +		Perl_warner(aTHX_ packWARN(WARN_SYNTAX),
 +			    "Can't locate package %"SVf" for the parents of %s",
-+			    (void*)basename_sv, hvname);
++			    SVfARG(basename_sv), hvname);
 +	    continue;
  	}
 -	else {
@@ -191,7 +191,7 @@
 -		    if (ckWARN(WARN_MISC))
 -			Perl_warner(aTHX_ packWARN(WARN_SYNTAX),
 -				    "Can't locate package %"SVf" for @%s::ISA",
--				    (void*)sv, hvname);
+-				    SVfARG(sv), hvname);
 -		    continue;
 -		}
 -		if (isa_lookup(basestash, name, name_stash, len, level + 1)) {
@@ -207,8 +207,8 @@
  
 === gv.c
 ==================================================================
---- gv.c	(/local/perl-current)	(revision 12599)
-+++ gv.c	(/local/perl-c3)	(revision 12599)
+--- gv.c	(/local/perl-current)	(revision 12652)
++++ gv.c	(/local/perl-c3)	(revision 12652)
 @@ -298,7 +298,7 @@
  The argument C<level> should be either 0 or -1.  If C<level==0>, as a
  side-effect creates a glob with the given C<name> in the given C<stash>
@@ -341,7 +341,7 @@
 +        if (!curstash) {
 +            if (ckWARN(WARN_MISC))
 +                Perl_warner(aTHX_ packWARN(WARN_MISC), "Can't locate package %"SVf" for @%s::ISA",
-+                    (void*)linear_sv, hvname);
++                    SVfARG(linear_sv), hvname);
 +            continue;
 +        }
  
@@ -393,7 +393,7 @@
 -	    if (!basestash) {
 -		if (ckWARN(WARN_MISC))
 -		    Perl_warner(aTHX_ packWARN(WARN_MISC), "Can't locate package %"SVf" for @%s::ISA",
--			(void*)sv, hvname);
+-			SVfARG(sv), hvname);
 -		continue;
 -	    }
 -	    gv = gv_fetchmeth(basestash, name, len,
@@ -456,8 +456,8 @@
      return 0;
 === perlapi.h
 ==================================================================
---- perlapi.h	(/local/perl-current)	(revision 12599)
-+++ perlapi.h	(/local/perl-c3)	(revision 12599)
+--- perlapi.h	(/local/perl-current)	(revision 12652)
++++ perlapi.h	(/local/perl-c3)	(revision 12652)
 @@ -332,6 +332,8 @@
  #define PL_initav		(*Perl_Iinitav_ptr(aTHX))
  #undef  PL_inplace
@@ -469,8 +469,8 @@
  #undef  PL_last_lop
 === win32/Makefile
 ==================================================================
---- win32/Makefile	(/local/perl-current)	(revision 12599)
-+++ win32/Makefile	(/local/perl-c3)	(revision 12599)
+--- win32/Makefile	(/local/perl-current)	(revision 12652)
++++ win32/Makefile	(/local/perl-c3)	(revision 12652)
 @@ -644,6 +644,7 @@
  		..\dump.c	\
  		..\globals.c	\
@@ -481,8 +481,8 @@
  		..\mathoms.c    \
 === win32/makefile.mk
 ==================================================================
---- win32/makefile.mk	(/local/perl-current)	(revision 12599)
-+++ win32/makefile.mk	(/local/perl-c3)	(revision 12599)
+--- win32/makefile.mk	(/local/perl-current)	(revision 12652)
++++ win32/makefile.mk	(/local/perl-c3)	(revision 12652)
 @@ -813,6 +813,7 @@
  		..\dump.c	\
  		..\globals.c	\
@@ -493,8 +493,8 @@
  		..\mathoms.c    \
 === win32/Makefile.ce
 ==================================================================
---- win32/Makefile.ce	(/local/perl-current)	(revision 12599)
-+++ win32/Makefile.ce	(/local/perl-c3)	(revision 12599)
+--- win32/Makefile.ce	(/local/perl-current)	(revision 12652)
++++ win32/Makefile.ce	(/local/perl-c3)	(revision 12652)
 @@ -571,6 +571,7 @@
  		..\dump.c	\
  		..\globals.c	\
@@ -513,8 +513,8 @@
  $(DLLDIR)\mathoms.obj \
 === NetWare/Makefile
 ==================================================================
---- NetWare/Makefile	(/local/perl-current)	(revision 12599)
-+++ NetWare/Makefile	(/local/perl-c3)	(revision 12599)
+--- NetWare/Makefile	(/local/perl-current)	(revision 12652)
++++ NetWare/Makefile	(/local/perl-c3)	(revision 12652)
 @@ -701,6 +701,7 @@
  		..\dump.c	\
  		..\globals.c	\
@@ -525,8 +525,8 @@
                  ..\mathoms.c    \
 === vms/descrip_mms.template
 ==================================================================
---- vms/descrip_mms.template	(/local/perl-current)	(revision 12599)
-+++ vms/descrip_mms.template	(/local/perl-c3)	(revision 12599)
+--- vms/descrip_mms.template	(/local/perl-current)	(revision 12652)
++++ vms/descrip_mms.template	(/local/perl-c3)	(revision 12652)
 @@ -279,13 +279,13 @@
  
  #### End of system configuration section. ####
@@ -554,8 +554,8 @@
  locale$(O) : locale.c $(h)
 === Makefile.SH
 ==================================================================
---- Makefile.SH	(/local/perl-current)	(revision 12599)
-+++ Makefile.SH	(/local/perl-c3)	(revision 12599)
+--- Makefile.SH	(/local/perl-current)	(revision 12652)
++++ Makefile.SH	(/local/perl-c3)	(revision 12652)
 @@ -364,7 +364,7 @@
  h5 = utf8.h warnings.h
  h = $(h1) $(h2) $(h3) $(h4) $(h5)
@@ -576,8 +576,8 @@
  
 === proto.h
 ==================================================================
---- proto.h	(/local/perl-current)	(revision 12599)
-+++ proto.h	(/local/perl-c3)	(revision 12599)
+--- proto.h	(/local/perl-current)	(revision 12652)
++++ proto.h	(/local/perl-c3)	(revision 12652)
 @@ -624,6 +624,18 @@
  PERL_CALLCONV GV*	Perl_gv_fetchfile(pTHX_ const char* name)
  			__attribute__nonnull__(pTHX_1);
@@ -599,8 +599,8 @@
  
 === ext/B/t/concise-xs.t
 ==================================================================
---- ext/B/t/concise-xs.t	(/local/perl-current)	(revision 12599)
-+++ ext/B/t/concise-xs.t	(/local/perl-c3)	(revision 12599)
+--- ext/B/t/concise-xs.t	(/local/perl-current)	(revision 12652)
++++ ext/B/t/concise-xs.t	(/local/perl-c3)	(revision 12652)
 @@ -117,7 +117,7 @@
  use Carp;
  use Test::More tests => ( # per-pkg tests (function ct + require_ok)
@@ -621,8 +621,8 @@
  
 === ext/B/B.xs
 ==================================================================
---- ext/B/B.xs	(/local/perl-current)	(revision 12599)
-+++ ext/B/B.xs	(/local/perl-c3)	(revision 12599)
+--- ext/B/B.xs	(/local/perl-current)	(revision 12652)
++++ ext/B/B.xs	(/local/perl-c3)	(revision 12652)
 @@ -604,6 +604,7 @@
  #define B_main_start()	PL_main_start
  #define B_amagic_generation()	PL_amagic_generation
@@ -643,8 +643,8 @@
  
 === ext/B/B.pm
 ==================================================================
---- ext/B/B.pm	(/local/perl-current)	(revision 12599)
-+++ ext/B/B.pm	(/local/perl-c3)	(revision 12599)
+--- ext/B/B.pm	(/local/perl-current)	(revision 12652)
++++ ext/B/B.pm	(/local/perl-c3)	(revision 12652)
 @@ -23,6 +23,7 @@
  		parents comppadlist sv_undef compile_stats timing_info
  		begin_av init_av unitcheck_av check_av end_av regex_padav
@@ -653,10 +653,14 @@
  		);
  
  sub OPf_KIDS ();
+=== ext/mro	(new directory)
+==================================================================
+=== ext/mro/t	(new directory)
+==================================================================
 === ext/mro/t/basic_01_dfs.t
 ==================================================================
---- ext/mro/t/basic_01_dfs.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/basic_01_dfs.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/basic_01_dfs.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/basic_01_dfs.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,54 @@
 +#!./perl
 +
@@ -714,8 +718,8 @@
 +is(UNIVERSAL::can("Diamond_D", 'hello')->(), 'Diamond_A::hello', '... can(method) resolved itself as expected');
 === ext/mro/t/vulcan_c3.t
 ==================================================================
---- ext/mro/t/vulcan_c3.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/vulcan_c3.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/vulcan_c3.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/vulcan_c3.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,73 @@
 +#!./perl
 +
@@ -792,8 +796,8 @@
 +    '... got the right MRO for the Vulcan Dylan Example');  
 === ext/mro/t/basic_02_dfs.t
 ==================================================================
---- ext/mro/t/basic_02_dfs.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/basic_02_dfs.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/basic_02_dfs.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/basic_02_dfs.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,122 @@
 +#!./perl
 +
@@ -919,8 +923,8 @@
 +is(Test::A->can('C_or_E')->(), 'Test::E', '... can got the expected method output');
 === ext/mro/t/basic_03_dfs.t
 ==================================================================
---- ext/mro/t/basic_03_dfs.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/basic_03_dfs.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/basic_03_dfs.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/basic_03_dfs.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,108 @@
 +#!./perl
 +
@@ -1032,8 +1036,8 @@
 +is(Test::A->C_or_D, 'Test::D', '... got the right method dispatch');    
 === ext/mro/t/basic_04_dfs.t
 ==================================================================
---- ext/mro/t/basic_04_dfs.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/basic_04_dfs.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/basic_04_dfs.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/basic_04_dfs.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,41 @@
 +#!./perl
 +
@@ -1078,8 +1082,8 @@
 +
 === ext/mro/t/basic_05_dfs.t
 ==================================================================
---- ext/mro/t/basic_05_dfs.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/basic_05_dfs.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/basic_05_dfs.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/basic_05_dfs.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,62 @@
 +#!./perl
 +
@@ -1145,8 +1149,8 @@
 +   '... got the right next::method dispatch path');
 === ext/mro/t/vulcan_dfs.t
 ==================================================================
---- ext/mro/t/vulcan_dfs.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/vulcan_dfs.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/vulcan_dfs.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/vulcan_dfs.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,73 @@
 +#!./perl
 +
@@ -1223,8 +1227,8 @@
 +    '... got the right MRO for the Vulcan Dylan Example');  
 === ext/mro/t/dbic_c3.t
 ==================================================================
---- ext/mro/t/dbic_c3.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/dbic_c3.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/dbic_c3.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/dbic_c3.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,126 @@
 +#!./perl
 +
@@ -1354,8 +1358,8 @@
 +    '... got the right C3 merge order for xx::DBIx::Class::Core');
 === ext/mro/t/complex_c3.t
 ==================================================================
---- ext/mro/t/complex_c3.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/complex_c3.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/complex_c3.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/complex_c3.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,144 @@
 +#!./perl
 +
@@ -1503,8 +1507,8 @@
 +    '... got the right C3 merge order for Test::K');
 === ext/mro/t/dbic_dfs.t
 ==================================================================
---- ext/mro/t/dbic_dfs.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/dbic_dfs.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/dbic_dfs.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/dbic_dfs.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,150 @@
 +#!./perl
 +
@@ -1658,8 +1662,8 @@
 +    '... got the right DFS merge order for xx::DBIx::Class::Core');
 === ext/mro/t/recursion_c3.t
 ==================================================================
---- ext/mro/t/recursion_c3.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/recursion_c3.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/recursion_c3.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/recursion_c3.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,90 @@
 +#!./perl
 +
@@ -1753,8 +1757,8 @@
 +}
 === ext/mro/t/overload_c3.t
 ==================================================================
---- ext/mro/t/overload_c3.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/overload_c3.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/overload_c3.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/overload_c3.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,55 @@
 +#!./perl
 +
@@ -1813,8 +1817,8 @@
 +
 === ext/mro/t/complex_dfs.t
 ==================================================================
---- ext/mro/t/complex_dfs.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/complex_dfs.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/complex_dfs.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/complex_dfs.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,144 @@
 +#!./perl
 +
@@ -1962,8 +1966,8 @@
 +    '... got the right DFS merge order for Test::K');
 === ext/mro/t/inconsistent_c3.t
 ==================================================================
---- ext/mro/t/inconsistent_c3.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/inconsistent_c3.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/inconsistent_c3.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/inconsistent_c3.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,48 @@
 +#!./perl
 +
@@ -2015,8 +2019,8 @@
 +like($@, qr/^Inconsistent /, '... got the right error with an inconsistent hierarchy');
 === ext/mro/t/recursion_dfs.t
 ==================================================================
---- ext/mro/t/recursion_dfs.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/recursion_dfs.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/recursion_dfs.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/recursion_dfs.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,90 @@
 +#!./perl
 +
@@ -2110,8 +2114,8 @@
 +}
 === ext/mro/t/basic_01_c3.t
 ==================================================================
---- ext/mro/t/basic_01_c3.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/basic_01_c3.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/basic_01_c3.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/basic_01_c3.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,54 @@
 +#!./perl
 +
@@ -2169,8 +2173,8 @@
 +is(UNIVERSAL::can("Diamond_D", 'hello')->(), 'Diamond_C::hello', '... can(method) resolved itself as expected');
 === ext/mro/t/basic_02_c3.t
 ==================================================================
---- ext/mro/t/basic_02_c3.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/basic_02_c3.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/basic_02_c3.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/basic_02_c3.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,122 @@
 +#!./perl
 +
@@ -2296,8 +2300,8 @@
 +is(Test::A->can('C_or_E')->(), 'Test::C', '... can got the expected method output');
 === ext/mro/t/overload_dfs.t
 ==================================================================
---- ext/mro/t/overload_dfs.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/overload_dfs.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/overload_dfs.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/overload_dfs.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,55 @@
 +#!./perl
 +
@@ -2356,8 +2360,8 @@
 +
 === ext/mro/t/basic_03_c3.t
 ==================================================================
---- ext/mro/t/basic_03_c3.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/basic_03_c3.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/basic_03_c3.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/basic_03_c3.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,108 @@
 +#!./perl
 +
@@ -2469,8 +2473,8 @@
 +is(Test::A->C_or_D, 'Test::C', '... got the right method dispatch');    
 === ext/mro/t/basic_04_c3.t
 ==================================================================
---- ext/mro/t/basic_04_c3.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/basic_04_c3.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/basic_04_c3.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/basic_04_c3.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,41 @@
 +#!./perl
 +
@@ -2515,8 +2519,8 @@
 +
 === ext/mro/t/basic_05_c3.t
 ==================================================================
---- ext/mro/t/basic_05_c3.t	(/local/perl-current)	(revision 12599)
-+++ ext/mro/t/basic_05_c3.t	(/local/perl-c3)	(revision 12599)
+--- ext/mro/t/basic_05_c3.t	(/local/perl-current)	(revision 12652)
++++ ext/mro/t/basic_05_c3.t	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,62 @@
 +#!./perl
 +
@@ -2582,8 +2586,8 @@
 +   '... got the right next::method dispatch path');
 === ext/mro/mro.xs
 ==================================================================
---- ext/mro/mro.xs	(/local/perl-current)	(revision 12599)
-+++ ext/mro/mro.xs	(/local/perl-c3)	(revision 12599)
+--- ext/mro/mro.xs	(/local/perl-current)	(revision 12652)
++++ ext/mro/mro.xs	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,98 @@
 +/*	mro.xs
 + *
@@ -2685,8 +2689,8 @@
 +        RETVAL
 === ext/mro/Makefile.PL
 ==================================================================
---- ext/mro/Makefile.PL	(/local/perl-current)	(revision 12599)
-+++ ext/mro/Makefile.PL	(/local/perl-c3)	(revision 12599)
+--- ext/mro/Makefile.PL	(/local/perl-current)	(revision 12652)
++++ ext/mro/Makefile.PL	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,35 @@
 +use ExtUtils::MakeMaker;
 +use Config;
@@ -2725,8 +2729,8 @@
 +}
 === ext/mro/mro.pm
 ==================================================================
---- ext/mro/mro.pm	(/local/perl-current)	(revision 12599)
-+++ ext/mro/mro.pm	(/local/perl-c3)	(revision 12599)
+--- ext/mro/mro.pm	(/local/perl-current)	(revision 12652)
++++ ext/mro/mro.pm	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,91 @@
 +#      mro.pm
 +#
@@ -2821,8 +2825,8 @@
 +=cut
 === MANIFEST
 ==================================================================
---- MANIFEST	(/local/perl-current)	(revision 12599)
-+++ MANIFEST	(/local/perl-c3)	(revision 12599)
+--- MANIFEST	(/local/perl-current)	(revision 12652)
++++ MANIFEST	(/local/perl-c3)	(revision 12652)
 @@ -893,6 +893,30 @@
  ext/MIME/Base64/t/quoted-print.t	See whether MIME::QuotedPrint works
  ext/MIME/Base64/t/unicode.t	See whether MIME::Base64 works
@@ -2854,7 +2858,7 @@
  ext/NDBM_File/hints/cygwin.pl	Hint for NDBM_File for named architecture
  ext/NDBM_File/hints/dec_osf.pl	Hint for NDBM_File for named architecture
  ext/NDBM_File/hints/dynixptx.pl	Hint for NDBM_File for named architecture
-@@ -2796,6 +2820,7 @@
+@@ -2797,6 +2821,7 @@
  mpeix/mpeix_setjmp.c		MPE/iX port
  mpeix/nm			MPE/iX port
  mpeix/relink			MPE/iX port
@@ -2864,8 +2868,8 @@
  NetWare/bat/SetCodeWar.bat	NetWare port
 === mro.c
 ==================================================================
---- mro.c	(/local/perl-current)	(revision 12599)
-+++ mro.c	(/local/perl-c3)	(revision 12599)
+--- mro.c	(/local/perl-current)	(revision 12652)
++++ mro.c	(/local/perl-c3)	(revision 12652)
 @@ -0,0 +1,298 @@
 +/*    mro.c
 + *
@@ -3167,9 +3171,9 @@
 + */
 === hv.c
 ==================================================================
---- hv.c	(/local/perl-current)	(revision 12599)
-+++ hv.c	(/local/perl-c3)	(revision 12599)
-@@ -1743,6 +1743,7 @@
+--- hv.c	(/local/perl-current)	(revision 12652)
++++ hv.c	(/local/perl-c3)	(revision 12652)
+@@ -1734,6 +1734,7 @@
  
  	if (SvOOK(hv)) {
  	    HE *entry;
@@ -3177,7 +3181,7 @@
  	    struct xpvhv_aux *iter = HvAUX(hv);
  	    /* If there are weak references to this HV, we need to avoid
  	       freeing them up here.  In particular we need to keep the AV
-@@ -1774,6 +1775,13 @@
+@@ -1765,6 +1766,13 @@
  	    iter->xhv_riter = -1; 	/* HvRITER(hv) = -1 */
  	    iter->xhv_eiter = NULL;	/* HvEITER(hv) = NULL */
  
@@ -3191,7 +3195,7 @@
  	    /* There are now no allocated pointers in the aux structure.  */
  
  	    SvFLAGS(hv) &= ~SVf_OOK; /* Goodbye, aux structure.  */
-@@ -1895,6 +1903,7 @@
+@@ -1886,6 +1894,7 @@
      iter->xhv_eiter = NULL;	/* HvEITER(hv) = NULL */
      iter->xhv_name = 0;
      iter->xhv_backreferences = 0;
@@ -3201,8 +3205,8 @@
  
 === hv.h
 ==================================================================
---- hv.h	(/local/perl-current)	(revision 12599)
-+++ hv.h	(/local/perl-c3)	(revision 12599)
+--- hv.h	(/local/perl-current)	(revision 12652)
++++ hv.h	(/local/perl-c3)	(revision 12652)
 @@ -38,12 +38,32 @@
  
  /* Subject to change.
@@ -3246,9 +3250,9 @@
  /* This macro may go away without notice.  */
 === mg.c
 ==================================================================
---- mg.c	(/local/perl-current)	(revision 12599)
-+++ mg.c	(/local/perl-c3)	(revision 12599)
-@@ -1520,6 +1520,7 @@
+--- mg.c	(/local/perl-current)	(revision 12652)
++++ mg.c	(/local/perl-c3)	(revision 12652)
+@@ -1475,6 +1475,7 @@
      PERL_UNUSED_ARG(sv);
      PERL_UNUSED_ARG(mg);
      PL_sub_generation++;
@@ -3258,9 +3262,9 @@
  
 === intrpvar.h
 ==================================================================
---- intrpvar.h	(/local/perl-current)	(revision 12599)
-+++ intrpvar.h	(/local/perl-c3)	(revision 12599)
-@@ -529,6 +529,7 @@
+--- intrpvar.h	(/local/perl-current)	(revision 12652)
++++ intrpvar.h	(/local/perl-c3)	(revision 12652)
+@@ -527,6 +527,7 @@
  PERLVARI(Iutf8cache, I8, 1)	/* Is the utf8 caching code enabled? */
  #endif
  
@@ -3270,9 +3274,9 @@
   * (Don't forget to add your variable also to perl_clone()!)
 === sv.c
 ==================================================================
---- sv.c	(/local/perl-current)	(revision 12599)
-+++ sv.c	(/local/perl-c3)	(revision 12599)
-@@ -11061,6 +11061,7 @@
+--- sv.c	(/local/perl-current)	(revision 12652)
++++ sv.c	(/local/perl-c3)	(revision 12652)
+@@ -11072,6 +11072,7 @@
      PL_initav		= av_dup_inc(proto_perl->Iinitav, param);
  
      PL_sub_generation	= proto_perl->Isub_generation;
@@ -3282,8 +3286,8 @@
      PL_forkprocess	= proto_perl->Iforkprocess;
 === embed.fnc
 ==================================================================
---- embed.fnc	(/local/perl-current)	(revision 12599)
-+++ embed.fnc	(/local/perl-c3)	(revision 12599)
+--- embed.fnc	(/local/perl-current)	(revision 12652)
++++ embed.fnc	(/local/perl-c3)	(revision 12652)
 @@ -278,6 +278,10 @@
  Apmb	|void	|gv_efullname3	|NN SV* sv|NN const GV* gv|NULLOK const char* prefix
  Ap	|void	|gv_efullname4	|NN SV* sv|NN const GV* gv|NULLOK const char* prefix|bool keepmain
@@ -3299,5 +3303,5 @@
 Property changes on: 
 ___________________________________________________________________
 Name: svk:merge
- +2679d79f-d018-0410-a353-0f906ad2929c:/local/perl-current:12598
+ +2679d79f-d018-0410-a353-0f906ad2929c:/local/perl-current:12651
 
