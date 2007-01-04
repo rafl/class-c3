@@ -23,10 +23,14 @@ __dopoptosub_at(const PERL_CONTEXT *cxstk, I32 startingblock) {
 
 MODULE = Class::C3	PACKAGE = next
 
+#ifdef XXX_NEW_PERL /* some sort of cpp check for a perl that has mro_linear */
+
+/* we want to define next::can, next::method, and maybe::next::method */
+
 CV*
 canxs(self)
-    SV* self;
-  CODE:
+    SV* self
+  PPCODE:
     register I32 cxix = __dopoptosub_at(cxstack, cxstack_ix);
     register const PERL_CONTEXT *cx;
     register const PERL_CONTEXT *ccstack = cxstack;
@@ -161,3 +165,13 @@ canxs(self)
         }
 
 
+#else /* mro_linear stuff not in core, so do some helpers for the pure-perl variant */
+
+/* we want to define two helper functions:
+   1) A replacement for Alg::C3::merge based on mro_linear_c3, but without the mro_meta caching parts.
+      it should have optional merge cache support just like Alg::C3 does, but only support @ISA, not
+      generic parents.  Call it Class::C3::calculateMRO_XS or something.
+   2) A fast "fetch the most recent caller's package/sub-names", based on the xs can function above,
+      to speed up the top half of pure-perl next::method.
+*/
+#endif

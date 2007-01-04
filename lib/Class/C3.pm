@@ -172,6 +172,7 @@ sub _remove_method_dispatch_table {
 
 ## functions for calculating C3 MRO
 
+# XXX to be replaced with XS code in either case (IN_CORE or not), see C3.xs
 sub calculateMRO {
     my ($class, $merge_cache) = @_;
     if($C3_IN_CORE) {
@@ -185,6 +186,8 @@ sub calculateMRO {
     }
 }
 
+if(!$C3_IN_CORE) { eval { # only define these here if no C3 in the core,
+                         #  otherwise they're defined in C3.xs
 package  # hide me from PAUSE
     next; 
 
@@ -260,6 +263,8 @@ use warnings;
 our $VERSION = '0.01';
 
 sub method { (next::method($_[0]) || return)->(@_) }
+
+}} # End of "if(!$C3_IN_CORE) { eval {"
 
 1;
 
