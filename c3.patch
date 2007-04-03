@@ -1,0 +1,3299 @@
+=== Makefile.micro
+==================================================================
+--- Makefile.micro	(/local/perl-current)	(revision 29701)
++++ Makefile.micro	(/local/perl-c3)	(revision 29701)
+@@ -10,7 +10,7 @@
+ all:	microperl
+ 
+ O = uav$(_O) udeb$(_O) udoio$(_O) udoop$(_O) udump$(_O) \
+-	uglobals$(_O) ugv$(_O) uhv$(_O) \
++	uglobals$(_O) ugv$(_O) uhv$(_O) umro$(_O)\
+ 	umg$(_O) uperlmain$(_O) uop$(_O) ureentr$(_O) \
+ 	upad$(_O) uperl$(_O) uperlio$(_O) uperly$(_O) upp$(_O) \
+ 	upp_ctl$(_O) upp_hot$(_O) upp_sys$(_O) upp_pack$(_O) upp_sort$(_O) \
+@@ -76,6 +76,9 @@
+ ugv$(_O):	$(HE) gv.c
+ 	$(CC) -c -o $@ $(CFLAGS) gv.c
+ 
++umro$(_O):	$(HE) mro.c
++	$(CC) -c -o $@ $(CFLAGS) mro.c
++
+ uhv$(_O):	$(HE) hv.c
+ 	$(CC) -c -o $@ $(CFLAGS) hv.c
+ 
+=== embed.h
+==================================================================
+--- embed.h	(/local/perl-current)	(revision 29701)
++++ embed.h	(/local/perl-c3)	(revision 29701)
+@@ -267,6 +267,10 @@
+ #define gv_efullname4		Perl_gv_efullname4
+ #define gv_fetchfile		Perl_gv_fetchfile
+ #define gv_fetchfile_flags	Perl_gv_fetchfile_flags
++#define mro_meta_init		Perl_mro_meta_init
++#define mro_linear		Perl_mro_linear
++#define mro_linear_c3		Perl_mro_linear_c3
++#define mro_linear_dfs		Perl_mro_linear_dfs
+ #define gv_fetchmeth		Perl_gv_fetchmeth
+ #define gv_fetchmeth_autoload	Perl_gv_fetchmeth_autoload
+ #define gv_fetchmethod_autoload	Perl_gv_fetchmethod_autoload
+@@ -2504,6 +2508,10 @@
+ #define gv_efullname4(a,b,c,d)	Perl_gv_efullname4(aTHX_ a,b,c,d)
+ #define gv_fetchfile(a)		Perl_gv_fetchfile(aTHX_ a)
+ #define gv_fetchfile_flags(a,b,c)	Perl_gv_fetchfile_flags(aTHX_ a,b,c)
++#define mro_meta_init(a)	Perl_mro_meta_init(aTHX_ a)
++#define mro_linear(a)		Perl_mro_linear(aTHX_ a)
++#define mro_linear_c3(a,b)	Perl_mro_linear_c3(aTHX_ a,b)
++#define mro_linear_dfs(a,b)	Perl_mro_linear_dfs(aTHX_ a,b)
+ #define gv_fetchmeth(a,b,c,d)	Perl_gv_fetchmeth(aTHX_ a,b,c,d)
+ #define gv_fetchmeth_autoload(a,b,c,d)	Perl_gv_fetchmeth_autoload(aTHX_ a,b,c,d)
+ #define gv_fetchmethod_autoload(a,b,c)	Perl_gv_fetchmethod_autoload(aTHX_ a,b,c)
+=== embedvar.h
+==================================================================
+--- embedvar.h	(/local/perl-current)	(revision 29701)
++++ embedvar.h	(/local/perl-c3)	(revision 29701)
+@@ -227,6 +227,7 @@
+ #define PL_incgv		(vTHX->Iincgv)
+ #define PL_initav		(vTHX->Iinitav)
+ #define PL_inplace		(vTHX->Iinplace)
++#define PL_isa_generation	(vTHX->Iisa_generation)
+ #define PL_known_layers		(vTHX->Iknown_layers)
+ #define PL_last_lop		(vTHX->Ilast_lop)
+ #define PL_last_lop_op		(vTHX->Ilast_lop_op)
+@@ -495,6 +496,7 @@
+ #define PL_Iincgv		PL_incgv
+ #define PL_Iinitav		PL_initav
+ #define PL_Iinplace		PL_inplace
++#define PL_Iisa_generation	PL_isa_generation
+ #define PL_Iknown_layers	PL_known_layers
+ #define PL_Ilast_lop		PL_last_lop
+ #define PL_Ilast_lop_op		PL_last_lop_op
+=== pod/perlapi.pod
+==================================================================
+--- pod/perlapi.pod	(/local/perl-current)	(revision 29701)
++++ pod/perlapi.pod	(/local/perl-c3)	(revision 29701)
+@@ -1326,7 +1326,7 @@
+ The argument C<level> should be either 0 or -1.  If C<level==0>, as a
+ side-effect creates a glob with the given C<name> in the given C<stash>
+ which in the case of success contains an alias for the subroutine, and sets
+-up caching info for this glob.  Similarly for all the searched stashes.
++up caching info for this glob.
+ 
+ This function grants C<"SUPER"> token as a postfix of the stash name. The
+ GV returned from C<gv_fetchmeth> may be a method cache entry, which is not
+=== global.sym
+==================================================================
+--- global.sym	(/local/perl-current)	(revision 29701)
++++ global.sym	(/local/perl-c3)	(revision 29701)
+@@ -135,6 +135,10 @@
+ Perl_gv_efullname4
+ Perl_gv_fetchfile
+ Perl_gv_fetchfile_flags
++Perl_mro_meta_init
++Perl_mro_linear
++Perl_mro_linear_c3
++Perl_mro_linear_dfs
+ Perl_gv_fetchmeth
+ Perl_gv_fetchmeth_autoload
+ Perl_gv_fetchmethod
+=== universal.c
+==================================================================
+--- universal.c	(/local/perl-current)	(revision 29701)
++++ universal.c	(/local/perl-c3)	(revision 29701)
+@@ -36,12 +36,12 @@
+              int len, int level)
+ {
+     dVAR;
+-    AV* av;
+-    GV* gv;
+-    GV** gvp;
+-    HV* hv = NULL;
+-    SV* subgen = NULL;
++    AV* stash_linear_isa;
++    SV** svp;
+     const char *hvname;
++    I32 items;
++    PERL_UNUSED_ARG(len);
++    PERL_UNUSED_ARG(level);
+ 
+     /* A stash/class can go by many names (ie. User == main::User), so 
+        we compare the stash itself just in case */
+@@ -56,75 +56,23 @@
+     if (strEQ(name, "UNIVERSAL"))
+ 	return TRUE;
+ 
+-    if (level > 100)
+-	Perl_croak(aTHX_ "Recursive inheritance detected in package '%s'",
+-		   hvname);
+-
+-    gvp = (GV**)hv_fetchs(stash, "::ISA::CACHE::", FALSE);
+-
+-    if (gvp && (gv = *gvp) && isGV_with_GP(gv) && (subgen = GvSV(gv))
+-	&& (hv = GvHV(gv)))
+-    {
+-	if (SvIV(subgen) == (IV)PL_sub_generation) {
+-	    SV** const svp = (SV**)hv_fetch(hv, name, len, FALSE);
+-	    if (svp) {
+-		SV * const sv = *svp;
+-#ifdef DEBUGGING
+-		if (sv != &PL_sv_undef)
+-		    DEBUG_o( Perl_deb(aTHX_ "Using cached ISA %s for package %s\n",
+-				    name, hvname) );
+-#endif
+-		return (sv == &PL_sv_yes);
+-	    }
++    stash_linear_isa = (AV*)sv_2mortal((SV*)mro_linear(stash));
++    svp = AvARRAY(stash_linear_isa) + 1;
++    items = AvFILLp(stash_linear_isa);
++    while (items--) {
++	SV* const basename_sv = *svp++;
++        HV* basestash = gv_stashsv(basename_sv, 0);
++	if (!basestash) {
++	    if (ckWARN(WARN_MISC))
++		Perl_warner(aTHX_ packWARN(WARN_SYNTAX),
++			    "Can't locate package %"SVf" for the parents of %s",
++			    SVfARG(basename_sv), hvname);
++	    continue;
+ 	}
+-	else {
+-	    DEBUG_o( Perl_deb(aTHX_ "ISA Cache in package %s is stale\n",
+-			      hvname) );
+-	    hv_clear(hv);
+-	    sv_setiv(subgen, PL_sub_generation);
+-	}
++        if(name_stash == basestash || strEQ(name, SvPVX(basename_sv)))
++	    return TRUE;
+     }
+ 
+-    gvp = (GV**)hv_fetchs(stash, "ISA", FALSE);
+-
+-    if (gvp && (gv = *gvp) && isGV_with_GP(gv) && (av = GvAV(gv))) {
+-	if (!hv || !subgen) {
+-	    gvp = (GV**)hv_fetchs(stash, "::ISA::CACHE::", TRUE);
+-
+-	    gv = *gvp;
+-
+-	    if (SvTYPE(gv) != SVt_PVGV)
+-		gv_init(gv, stash, "::ISA::CACHE::", 14, TRUE);
+-
+-	    if (!hv)
+-		hv = GvHVn(gv);
+-	    if (!subgen) {
+-		subgen = newSViv(PL_sub_generation);
+-		GvSV(gv) = subgen;
+-	    }
+-	}
+-	if (hv) {
+-	    SV** svp = AvARRAY(av);
+-	    /* NOTE: No support for tied ISA */
+-	    I32 items = AvFILLp(av) + 1;
+-	    while (items--) {
+-		SV* const sv = *svp++;
+-		HV* const basestash = gv_stashsv(sv, 0);
+-		if (!basestash) {
+-		    if (ckWARN(WARN_MISC))
+-			Perl_warner(aTHX_ packWARN(WARN_SYNTAX),
+-				    "Can't locate package %"SVf" for @%s::ISA",
+-				    SVfARG(sv), hvname);
+-		    continue;
+-		}
+-		if (isa_lookup(basestash, name, name_stash, len, level + 1)) {
+-		    (void)hv_store(hv,name,len,&PL_sv_yes,0);
+-		    return TRUE;
+-		}
+-	    }
+-	    (void)hv_store(hv,name,len,&PL_sv_no,0);
+-	}
+-    }
+     return FALSE;
+ }
+ 
+=== gv.c
+==================================================================
+--- gv.c	(/local/perl-current)	(revision 29701)
++++ gv.c	(/local/perl-c3)	(revision 29701)
+@@ -306,7 +306,7 @@
+ The argument C<level> should be either 0 or -1.  If C<level==0>, as a
+ side-effect creates a glob with the given C<name> in the given C<stash>
+ which in the case of success contains an alias for the subroutine, and sets
+-up caching info for this glob.  Similarly for all the searched stashes.
++up caching info for this glob.
+ 
+ This function grants C<"SUPER"> token as a postfix of the stash name. The
+ GV returned from C<gv_fetchmeth> may be a method cache entry, which is not
+@@ -317,133 +317,137 @@
+ =cut
+ */
+ 
++/* NOTE: No support for tied ISA */
++
+ GV *
+ Perl_gv_fetchmeth(pTHX_ HV *stash, const char *name, STRLEN len, I32 level)
+ {
+     dVAR;
+-    AV* av;
+-    GV* topgv;
+-    GV* gv;
+     GV** gvp;
+-    CV* cv;
++    AV* linear_av;
++    SV** linear_svp;
++    SV* linear_sv;
++    HV* curstash;
++    GV* candidate = NULL;
++    CV* cand_cv = NULL;
++    CV* old_cv;
++    GV* topgv = NULL;
+     const char *hvname;
+-    HV* lastchance = NULL;
++    I32 create = (level >= 0) ? 1 : 0;
++    I32 items;
++    STRLEN packlen;
+ 
+     /* UNIVERSAL methods should be callable without a stash */
+     if (!stash) {
+-	level = -1;  /* probably appropriate */
++	create = 0;  /* probably appropriate */
+ 	if(!(stash = gv_stashpvs("UNIVERSAL", 0)))
+ 	    return 0;
+     }
+ 
++    assert(stash);
++
+     hvname = HvNAME_get(stash);
+     if (!hvname)
+-      Perl_croak(aTHX_
+-		 "Can't use anonymous symbol table for method lookup");
++      Perl_croak(aTHX_ "Can't use anonymous symbol table for method lookup");
+ 
+-    if ((level > 100) || (level < -100))
+-	Perl_croak(aTHX_ "Recursive inheritance detected while looking for method '%s' in package '%s'",
+-	      name, hvname);
++    assert(hvname);
++    assert(name);
++    assert(len >= 0);
+ 
+     DEBUG_o( Perl_deb(aTHX_ "Looking for method %s in package %s\n",name,hvname) );
+ 
+-    gvp = (GV**)hv_fetch(stash, name, len, (level >= 0));
+-    if (!gvp)
+-	topgv = NULL;
++    /* check locally for a real method or a cache entry */
++    gvp = (GV**)hv_fetch(stash, name, len, create);
++    if(gvp) {
++        topgv = *gvp;
++        assert(topgv);
++        if (SvTYPE(topgv) != SVt_PVGV)
++            gv_init(topgv, stash, name, len, TRUE);
++        if ((cand_cv = GvCV(topgv))) {
++            /* If genuine method or valid cache entry, use it */
++            if (!GvCVGEN(topgv) || GvCVGEN(topgv) == PL_sub_generation) {
++                return topgv;
++            }
++            else {
++                /* stale cache entry, junk it and move on */
++	        SvREFCNT_dec(cand_cv);
++	        GvCV(topgv) = cand_cv = NULL;
++	        GvCVGEN(topgv) = 0;
++            }
++        }
++        else if (GvCVGEN(topgv) == PL_sub_generation) {
++            /* cache indicates no such method definitively */
++            return 0;
++        }
++    }
++
++    packlen = HvNAMELEN_get(stash);
++    if (packlen >= 7 && strEQ(hvname + packlen - 7, "::SUPER")) {
++        HV* basestash;
++        packlen -= 7;
++        basestash = gv_stashpvn(hvname, packlen, GV_ADD);
++        linear_av = mro_linear(basestash);
++    }
+     else {
+-	topgv = *gvp;
+-	if (SvTYPE(topgv) != SVt_PVGV)
+-	    gv_init(topgv, stash, name, len, TRUE);
+-	if ((cv = GvCV(topgv))) {
+-	    /* If genuine method or valid cache entry, use it */
+-	    if (!GvCVGEN(topgv) || GvCVGEN(topgv) == PL_sub_generation)
+-		return topgv;
+-	    /* Stale cached entry: junk it */
+-	    SvREFCNT_dec(cv);
+-	    GvCV(topgv) = cv = NULL;
+-	    GvCVGEN(topgv) = 0;
+-	}
+-	else if (GvCVGEN(topgv) == PL_sub_generation)
+-	    return 0;  /* cache indicates sub doesn't exist */
++        linear_av = mro_linear(stash); /* has ourselves at the top of the list */
+     }
++    sv_2mortal((SV*)linear_av);
+ 
+-    gvp = (GV**)hv_fetchs(stash, "ISA", FALSE);
+-    av = (gvp && (gv = *gvp) && isGV_with_GP(gv)) ? GvAV(gv) : NULL;
++    linear_svp = AvARRAY(linear_av) + 1; /* skip over self */
++    items = AvFILLp(linear_av); /* no +1, to skip over self */
++    while (items--) {
++        linear_sv = *linear_svp++;
++        assert(linear_sv);
++        curstash = gv_stashsv(linear_sv, 0);
+ 
+-    /* create and re-create @.*::SUPER::ISA on demand */
+-    if (!av || !SvMAGIC(av)) {
+-	STRLEN packlen = HvNAMELEN_get(stash);
++        if (!curstash) {
++            if (ckWARN(WARN_MISC))
++                Perl_warner(aTHX_ packWARN(WARN_MISC), "Can't locate package %"SVf" for @%s::ISA",
++                    SVfARG(linear_sv), hvname);
++            continue;
++        }
+ 
+-	if (packlen >= 7 && strEQ(hvname + packlen - 7, "::SUPER")) {
+-	    HV* basestash;
++        assert(curstash);
+ 
+-	    packlen -= 7;
+-	    basestash = gv_stashpvn(hvname, packlen, GV_ADD);
+-	    gvp = (GV**)hv_fetchs(basestash, "ISA", FALSE);
+-	    if (gvp && (gv = *gvp) && isGV_with_GP(gv) && (av = GvAV(gv))) {
+-		gvp = (GV**)hv_fetchs(stash, "ISA", TRUE);
+-		if (!gvp || !(gv = *gvp))
+-		    Perl_croak(aTHX_ "Cannot create %s::ISA", hvname);
+-		if (SvTYPE(gv) != SVt_PVGV)
+-		    gv_init(gv, stash, "ISA", 3, TRUE);
+-		SvREFCNT_dec(GvAV(gv));
+-		GvAV(gv) = (AV*)SvREFCNT_inc_simple(av);
+-	    }
+-	}
++        gvp = (GV**)hv_fetch(curstash, name, len, 0);
++        if (!gvp) continue;
++        candidate = *gvp;
++        assert(candidate);
++        if (SvTYPE(candidate) != SVt_PVGV) gv_init(candidate, curstash, name, len, TRUE);
++        if (SvTYPE(candidate) == SVt_PVGV && (cand_cv = GvCV(candidate)) && !GvCVGEN(candidate)) {
++            /*
++             * Found real method, cache method in topgv if:
++             *  1. topgv has no synonyms (else inheritance crosses wires)
++             *  2. method isn't a stub (else AUTOLOAD fails spectacularly)
++             */
++            if (topgv && (GvREFCNT(topgv) == 1) && (CvROOT(cand_cv) || CvXSUB(cand_cv))) {
++                  if ((old_cv = GvCV(topgv))) SvREFCNT_dec(old_cv);
++                  SvREFCNT_inc_simple_void_NN(cand_cv);
++                  GvCV(topgv) = cand_cv;
++                  GvCVGEN(topgv) = PL_sub_generation;
++            }
++	    return candidate;
++        }
+     }
+ 
+-    if (av) {
+-	SV** svp = AvARRAY(av);
+-	/* NOTE: No support for tied ISA */
+-	I32 items = AvFILLp(av) + 1;
+-	while (items--) {
+-	    SV* const sv = *svp++;
+-	    HV* const basestash = gv_stashsv(sv, 0);
+-	    if (!basestash) {
+-		if (ckWARN(WARN_MISC))
+-		    Perl_warner(aTHX_ packWARN(WARN_MISC), "Can't locate package %"SVf" for @%s::ISA",
+-			SVfARG(sv), hvname);
+-		continue;
+-	    }
+-	    gv = gv_fetchmeth(basestash, name, len,
+-			      (level >= 0) ? level + 1 : level - 1);
+-	    if (gv)
+-		goto gotcha;
+-	}
++    /* Check UNIVERSAL without caching */
++    if(level == 0 || level == -1) {
++        candidate = gv_fetchmeth(NULL, name, len, 1);
++        if(candidate) {
++            cand_cv = GvCV(candidate);
++            if (topgv && (GvREFCNT(topgv) == 1) && (CvROOT(cand_cv) || CvXSUB(cand_cv))) {
++                  if ((old_cv = GvCV(topgv))) SvREFCNT_dec(old_cv);
++                  SvREFCNT_inc_simple_void_NN(cand_cv);
++                  GvCV(topgv) = cand_cv;
++                  GvCVGEN(topgv) = PL_sub_generation;
++            }
++            return candidate;
++        }
+     }
+ 
+-    /* if at top level, try UNIVERSAL */
+-
+-    if (level == 0 || level == -1) {
+-	lastchance = gv_stashpvs("UNIVERSAL", 0);
+-
+-	if (lastchance) {
+-	    if ((gv = gv_fetchmeth(lastchance, name, len,
+-				  (level >= 0) ? level + 1 : level - 1)))
+-	    {
+-	  gotcha:
+-		/*
+-		 * Cache method in topgv if:
+-		 *  1. topgv has no synonyms (else inheritance crosses wires)
+-		 *  2. method isn't a stub (else AUTOLOAD fails spectacularly)
+-		 */
+-		if (topgv &&
+-		    GvREFCNT(topgv) == 1 &&
+-		    (cv = GvCV(gv)) &&
+-		    (CvROOT(cv) || CvXSUB(cv)))
+-		{
+-		    if ((cv = GvCV(topgv)))
+-			SvREFCNT_dec(cv);
+-		    GvCV(topgv) = (CV*)SvREFCNT_inc(GvCV(gv));
+-		    GvCVGEN(topgv) = PL_sub_generation;
+-		}
+-		return gv;
+-	    }
+-	    else if (topgv && GvREFCNT(topgv) == 1) {
+-		/* cache the fact that the method is not defined */
+-		GvCVGEN(topgv) = PL_sub_generation;
+-	    }
+-	}
++    if (topgv && GvREFCNT(topgv) == 1) {
++        /* cache the fact that the method is not defined */
++        GvCVGEN(topgv) = PL_sub_generation;
+     }
+ 
+     return 0;
+=== perlapi.h
+==================================================================
+--- perlapi.h	(/local/perl-current)	(revision 29701)
++++ perlapi.h	(/local/perl-c3)	(revision 29701)
+@@ -332,6 +332,8 @@
+ #define PL_initav		(*Perl_Iinitav_ptr(aTHX))
+ #undef  PL_inplace
+ #define PL_inplace		(*Perl_Iinplace_ptr(aTHX))
++#undef  PL_isa_generation
++#define PL_isa_generation	(*Perl_Iisa_generation_ptr(aTHX))
+ #undef  PL_known_layers
+ #define PL_known_layers		(*Perl_Iknown_layers_ptr(aTHX))
+ #undef  PL_last_lop
+=== win32/Makefile
+==================================================================
+--- win32/Makefile	(/local/perl-current)	(revision 29701)
++++ win32/Makefile	(/local/perl-c3)	(revision 29701)
+@@ -644,6 +644,7 @@
+ 		..\dump.c	\
+ 		..\globals.c	\
+ 		..\gv.c		\
++		..\mro.c	\
+ 		..\hv.c		\
+ 		..\locale.c	\
+ 		..\mathoms.c    \
+=== win32/makefile.mk
+==================================================================
+--- win32/makefile.mk	(/local/perl-current)	(revision 29701)
++++ win32/makefile.mk	(/local/perl-c3)	(revision 29701)
+@@ -813,6 +813,7 @@
+ 		..\dump.c	\
+ 		..\globals.c	\
+ 		..\gv.c		\
++		..\mro.c	\
+ 		..\hv.c		\
+ 		..\locale.c	\
+ 		..\mathoms.c    \
+=== win32/Makefile.ce
+==================================================================
+--- win32/Makefile.ce	(/local/perl-current)	(revision 29701)
++++ win32/Makefile.ce	(/local/perl-c3)	(revision 29701)
+@@ -571,6 +571,7 @@
+ 		..\dump.c	\
+ 		..\globals.c	\
+ 		..\gv.c		\
++		..\mro.c	\
+ 		..\hv.c		\
+ 		..\mg.c		\
+ 		..\op.c		\
+@@ -790,6 +791,7 @@
+ $(DLLDIR)\dump.obj \
+ $(DLLDIR)\globals.obj \
+ $(DLLDIR)\gv.obj \
++$(DLLDIR)\mro.obj \
+ $(DLLDIR)\hv.obj \
+ $(DLLDIR)\locale.obj \
+ $(DLLDIR)\mathoms.obj \
+=== NetWare/Makefile
+==================================================================
+--- NetWare/Makefile	(/local/perl-current)	(revision 29701)
++++ NetWare/Makefile	(/local/perl-c3)	(revision 29701)
+@@ -701,6 +701,7 @@
+ 		..\dump.c	\
+ 		..\globals.c	\
+ 		..\gv.c		\
++		..\mro.c	\
+ 		..\hv.c		\
+ 		..\locale.c	\
+                 ..\mathoms.c    \
+=== vms/descrip_mms.template
+==================================================================
+--- vms/descrip_mms.template	(/local/perl-current)	(revision 29701)
++++ vms/descrip_mms.template	(/local/perl-c3)	(revision 29701)
+@@ -279,13 +279,13 @@
+ 
+ #### End of system configuration section. ####
+ 
+-c0 = $(MALLOC_C) $(SOCKC) av.c deb.c doio.c doop.c dump.c globals.c gv.c hv.c
++c0 = $(MALLOC_C) $(SOCKC) av.c deb.c doio.c doop.c dump.c globals.c gv.c hv.c mro.c
+ c1 = mg.c locale.c mathoms.c miniperlmain.c numeric.c op.c pad.c perl.c perlapi.c perlio.c
+ c2 = perly.c pp.c pp_ctl.c pp_hot.c pp_pack.c pp_sort.c pp_sys.c regcomp.c regexec.c reentr.c
+ c3 = run.c scope.c sv.c taint.c toke.c universal.c utf8.c util.c vms.c xsutils.c
+ c = $(c0) $(c1) $(c2) $(c3)
+ 
+-obj0 = $(MALLOC_O) $(SOCKO) av$(O) deb$(O) doio$(O) doop$(O) dump$(O)
++obj0 = $(MALLOC_O) $(SOCKO) av$(O) deb$(O) doio$(O) doop$(O) dump$(O) mro$(O)
+ obj1 = globals$(O) gv$(O) hv$(O) locale$(O) mathoms$(O) mg$(O) miniperlmain$(O) numeric$(O) op$(O) pad$(O)
+ obj2 = perl$(O) perlapi$(O) perlio$(O) perly$(O) pp$(O) pp_ctl$(O) pp_hot$(O) reentr$(O)
+ obj3 = pp_pack$(O) pp_sort$(O) pp_sys$(O) regcomp$(O) regexec$(O) run$(O) scope$(O) sv$(O) taint$(O) toke$(O)
+@@ -1606,6 +1606,8 @@
+ 	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
+ gv$(O) : gv.c $(h)
+ 	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
++mro$(O) : mro.c $(h)
++	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
+ hv$(O) : hv.c $(h)
+ 	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
+ locale$(O) : locale.c $(h)
+=== Makefile.SH
+==================================================================
+--- Makefile.SH	(/local/perl-current)	(revision 29701)
++++ Makefile.SH	(/local/perl-c3)	(revision 29701)
+@@ -367,7 +367,7 @@
+ h5 = utf8.h warnings.h
+ h = $(h1) $(h2) $(h3) $(h4) $(h5)
+ 
+-c1 = av.c scope.c op.c doop.c doio.c dump.c gv.c hv.c mg.c reentr.c  perl.c
++c1 = av.c scope.c op.c doop.c doio.c dump.c gv.c hv.c mg.c reentr.c mro.c perl.c
+ c2 = perly.c pp.c pp_hot.c pp_ctl.c pp_sys.c regcomp.c regexec.c utf8.c sv.c
+ c3 = taint.c toke.c util.c deb.c run.c universal.c xsutils.c pad.c globals.c
+ c4 = perlio.c perlapi.c numeric.c mathoms.c locale.c pp_pack.c pp_sort.c
+@@ -375,7 +375,7 @@
+ 
+ c = $(c1) $(c2) $(c3) $(c4) $(c5) miniperlmain.c perlmain.c opmini.c
+ 
+-obj1 = $(madlyobj) $(mallocobj) gv$(OBJ_EXT) toke$(OBJ_EXT) perly$(OBJ_EXT) op$(OBJ_EXT) pad$(OBJ_EXT) regcomp$(OBJ_EXT) dump$(OBJ_EXT) util$(OBJ_EXT) mg$(OBJ_EXT) reentr$(OBJ_EXT)
++obj1 = $(madlyobj) $(mallocobj) gv$(OBJ_EXT) toke$(OBJ_EXT) perly$(OBJ_EXT) op$(OBJ_EXT) pad$(OBJ_EXT) regcomp$(OBJ_EXT) dump$(OBJ_EXT) util$(OBJ_EXT) mg$(OBJ_EXT) reentr$(OBJ_EXT) mro$(OBJ_EXT)
+ obj2 = hv$(OBJ_EXT) av$(OBJ_EXT) perl$(OBJ_EXT) run$(OBJ_EXT) pp_hot$(OBJ_EXT) sv$(OBJ_EXT) pp$(OBJ_EXT) scope$(OBJ_EXT) pp_ctl$(OBJ_EXT) pp_sys$(OBJ_EXT)
+ obj3 = doop$(OBJ_EXT) doio$(OBJ_EXT) regexec$(OBJ_EXT) utf8$(OBJ_EXT) taint$(OBJ_EXT) deb$(OBJ_EXT) universal$(OBJ_EXT) xsutils$(OBJ_EXT) globals$(OBJ_EXT) perlio$(OBJ_EXT) perlapi$(OBJ_EXT) numeric$(OBJ_EXT) mathoms$(OBJ_EXT) locale$(OBJ_EXT) pp_pack$(OBJ_EXT) pp_sort$(OBJ_EXT)
+ 
+=== proto.h
+==================================================================
+--- proto.h	(/local/perl-current)	(revision 29701)
++++ proto.h	(/local/perl-c3)	(revision 29701)
+@@ -635,6 +635,18 @@
+ PERL_CALLCONV GV*	Perl_gv_fetchfile_flags(pTHX_ const char *const name, const STRLEN len, const U32 flags)
+ 			__attribute__nonnull__(pTHX_1);
+ 
++PERL_CALLCONV struct mro_meta*	Perl_mro_meta_init(pTHX_ HV* stash)
++			__attribute__nonnull__(pTHX_1);
++
++PERL_CALLCONV AV*	Perl_mro_linear(pTHX_ HV* stash)
++			__attribute__nonnull__(pTHX_1);
++
++PERL_CALLCONV AV*	Perl_mro_linear_c3(pTHX_ HV* stash, I32 level)
++			__attribute__nonnull__(pTHX_1);
++
++PERL_CALLCONV AV*	Perl_mro_linear_dfs(pTHX_ HV* stash, I32 level)
++			__attribute__nonnull__(pTHX_1);
++
+ PERL_CALLCONV GV*	Perl_gv_fetchmeth(pTHX_ HV* stash, const char* name, STRLEN len, I32 level)
+ 			__attribute__nonnull__(pTHX_2);
+ 
+=== ext/B/t/concise-xs.t
+==================================================================
+--- ext/B/t/concise-xs.t	(/local/perl-current)	(revision 29701)
++++ ext/B/t/concise-xs.t	(/local/perl-c3)	(revision 29701)
+@@ -117,7 +117,7 @@
+ use Carp;
+ use Test::More tests => ( # per-pkg tests (function ct + require_ok)
+ 			  40 + 16	# Data::Dumper, Digest::MD5
+-			  + 517 + 239	# B::Deparse, B
++			  + 517 + 240	# B::Deparse, B
+ 			  + 595 + 190	# POSIX, IO::Socket
+ 			  + 323 * ($] > 5.009)
+ 			  + 17 * ($] >= 5.009003)
+@@ -157,7 +157,7 @@
+ 		  formfeed end_av dowarn diehook defstash curstash
+ 		  cstring comppadlist check_av cchar cast_I32 bootstrap
+ 		  begin_av amagic_generation sub_generation address
+-		  ), $] > 5.009 ? ('unitcheck_av') : ()],
++		  ), $] > 5.009 ? ('unitcheck_av', 'isa_generation') : ()],
+     },
+ 
+     B::Deparse => { dflt => 'perl',	# 235 functions
+=== ext/B/B.xs
+==================================================================
+--- ext/B/B.xs	(/local/perl-current)	(revision 29701)
++++ ext/B/B.xs	(/local/perl-c3)	(revision 29701)
+@@ -609,6 +609,7 @@
+ #define B_main_start()	PL_main_start
+ #define B_amagic_generation()	PL_amagic_generation
+ #define B_sub_generation()	PL_sub_generation
++#define B_isa_generation()	PL_isa_generation
+ #define B_defstash()	PL_defstash
+ #define B_curstash()	PL_curstash
+ #define B_dowarn()	PL_dowarn
+@@ -665,6 +666,9 @@
+ long
+ B_sub_generation()
+ 
++long
++B_isa_generation()
++
+ B::AV
+ B_comppadlist()
+ 
+=== ext/B/B.pm
+==================================================================
+--- ext/B/B.pm	(/local/perl-current)	(revision 29701)
++++ ext/B/B.pm	(/local/perl-c3)	(revision 29701)
+@@ -23,6 +23,7 @@
+ 		parents comppadlist sv_undef compile_stats timing_info
+ 		begin_av init_av check_av end_av regex_padav dowarn defstash
+ 		curstash warnhook diehook inc_gv
++		isa_generation
+ 		);
+ push @EXPORT_OK, qw(unitcheck_av) if $] > 5.009;
+ 
+=== ext/mro	(new directory)
+==================================================================
+=== ext/mro/t	(new directory)
+==================================================================
+=== ext/mro/t/basic_01_dfs.t
+==================================================================
+--- ext/mro/t/basic_01_dfs.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/basic_01_dfs.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,54 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 4;
++use mro;
++
++=pod
++
++This tests the classic diamond inheritence pattern.
++
++   <A>
++  /   \
++<B>   <C>
++  \   /
++   <D>
++
++=cut
++
++{
++    package Diamond_A;
++    sub hello { 'Diamond_A::hello' }
++}
++{
++    package Diamond_B;
++    use base 'Diamond_A';
++}
++{
++    package Diamond_C;
++    use base 'Diamond_A';     
++    
++    sub hello { 'Diamond_C::hello' }
++}
++{
++    package Diamond_D;
++    use base ('Diamond_B', 'Diamond_C');
++    use mro 'dfs';
++}
++
++is_deeply(
++    mro::get_mro_linear('Diamond_D'),
++    [ qw(Diamond_D Diamond_B Diamond_A Diamond_C) ],
++    '... got the right MRO for Diamond_D');
++
++is(Diamond_D->hello, 'Diamond_A::hello', '... method resolved itself as expected');
++is(Diamond_D->can('hello')->(), 'Diamond_A::hello', '... can(method) resolved itself as expected');
++is(UNIVERSAL::can("Diamond_D", 'hello')->(), 'Diamond_A::hello', '... can(method) resolved itself as expected');
+=== ext/mro/t/vulcan_c3.t
+==================================================================
+--- ext/mro/t/vulcan_c3.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/vulcan_c3.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,73 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 1;
++use mro;
++
++=pod
++
++example taken from: L<http://gauss.gwydiondylan.org/books/drm/drm_50.html>
++
++         Object
++           ^
++           |
++        LifeForm 
++         ^    ^
++        /      \
++   Sentient    BiPedal
++      ^          ^
++      |          |
++ Intelligent  Humanoid
++       ^        ^
++        \      /
++         Vulcan
++
++ define class <sentient> (<life-form>) end class;
++ define class <bipedal> (<life-form>) end class;
++ define class <intelligent> (<sentient>) end class;
++ define class <humanoid> (<bipedal>) end class;
++ define class <vulcan> (<intelligent>, <humanoid>) end class;
++
++=cut
++
++{
++    package Object;    
++    use mro 'c3';
++    
++    package LifeForm;
++    use mro 'c3';
++    use base 'Object';
++    
++    package Sentient;
++    use mro 'c3';
++    use base 'LifeForm';
++    
++    package BiPedal;
++    use mro 'c3';    
++    use base 'LifeForm';
++    
++    package Intelligent;
++    use mro 'c3';    
++    use base 'Sentient';
++    
++    package Humanoid;
++    use mro 'c3';    
++    use base 'BiPedal';
++    
++    package Vulcan;
++    use mro 'c3';    
++    use base ('Intelligent', 'Humanoid');
++}
++
++is_deeply(
++    mro::get_mro_linear('Vulcan'),
++    [ qw(Vulcan Intelligent Sentient Humanoid BiPedal LifeForm Object) ],
++    '... got the right MRO for the Vulcan Dylan Example');  
+=== ext/mro/t/basic_02_dfs.t
+==================================================================
+--- ext/mro/t/basic_02_dfs.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/basic_02_dfs.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,122 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 10;
++use mro;
++
++=pod
++
++This example is take from: http://www.python.org/2.3/mro.html
++
++"My first example"
++class O: pass
++class F(O): pass
++class E(O): pass
++class D(O): pass
++class C(D,F): pass
++class B(D,E): pass
++class A(B,C): pass
++
++
++                          6
++                         ---
++Level 3                 | O |                  (more general)
++                      /  ---  \
++                     /    |    \                      |
++                    /     |     \                     |
++                   /      |      \                    |
++                  ---    ---    ---                   |
++Level 2        3 | D | 4| E |  | F | 5                |
++                  ---    ---    ---                   |
++                   \  \ _ /       |                   |
++                    \    / \ _    |                   |
++                     \  /      \  |                   |
++                      ---      ---                    |
++Level 1            1 | B |    | C | 2                 |
++                      ---      ---                    |
++                        \      /                      |
++                         \    /                      \ /
++                           ---
++Level 0                 0 | A |                (more specialized)
++                           ---
++
++=cut
++
++{
++    package Test::O;
++    use mro 'dfs'; 
++    
++    package Test::F;   
++    use mro 'dfs';  
++    use base 'Test::O';        
++    
++    package Test::E;
++    use base 'Test::O';    
++    use mro 'dfs';     
++    
++    sub C_or_E { 'Test::E' }
++
++    package Test::D;
++    use mro 'dfs'; 
++    use base 'Test::O';     
++    
++    sub C_or_D { 'Test::D' }       
++      
++    package Test::C;
++    use base ('Test::D', 'Test::F');
++    use mro 'dfs'; 
++    
++    sub C_or_D { 'Test::C' }
++    sub C_or_E { 'Test::C' }    
++        
++    package Test::B;    
++    use mro 'dfs'; 
++    use base ('Test::D', 'Test::E');    
++        
++    package Test::A;    
++    use base ('Test::B', 'Test::C');
++    use mro 'dfs';    
++}
++
++is_deeply(
++    mro::get_mro_linear('Test::F'),
++    [ qw(Test::F Test::O) ],
++    '... got the right MRO for Test::F');
++
++is_deeply(
++    mro::get_mro_linear('Test::E'),
++    [ qw(Test::E Test::O) ],
++    '... got the right MRO for Test::E');    
++
++is_deeply(
++    mro::get_mro_linear('Test::D'),
++    [ qw(Test::D Test::O) ],
++    '... got the right MRO for Test::D');       
++
++is_deeply(
++    mro::get_mro_linear('Test::C'),
++    [ qw(Test::C Test::D Test::O Test::F) ],
++    '... got the right MRO for Test::C'); 
++
++is_deeply(
++    mro::get_mro_linear('Test::B'),
++    [ qw(Test::B Test::D Test::O Test::E) ],
++    '... got the right MRO for Test::B');     
++
++is_deeply(
++    mro::get_mro_linear('Test::A'),
++    [ qw(Test::A Test::B Test::D Test::O Test::E Test::C Test::F) ],
++    '... got the right MRO for Test::A');  
++    
++is(Test::A->C_or_D, 'Test::D', '... got the expected method output');
++is(Test::A->can('C_or_D')->(), 'Test::D', '... can got the expected method output');
++is(Test::A->C_or_E, 'Test::E', '... got the expected method output');
++is(Test::A->can('C_or_E')->(), 'Test::E', '... can got the expected method output');
+=== ext/mro/t/basic_03_dfs.t
+==================================================================
+--- ext/mro/t/basic_03_dfs.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/basic_03_dfs.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,108 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 4;
++use mro;
++
++=pod
++
++This example is take from: http://www.python.org/2.3/mro.html
++
++"My second example"
++class O: pass
++class F(O): pass
++class E(O): pass
++class D(O): pass
++class C(D,F): pass
++class B(E,D): pass
++class A(B,C): pass
++
++                           6
++                          ---
++Level 3                  | O |
++                       /  ---  \
++                      /    |    \
++                     /     |     \
++                    /      |      \
++                  ---     ---    ---
++Level 2        2 | E | 4 | D |  | F | 5
++                  ---     ---    ---
++                   \      / \     /
++                    \    /   \   /
++                     \  /     \ /
++                      ---     ---
++Level 1            1 | B |   | C | 3
++                      ---     ---
++                       \       /
++                        \     /
++                          ---
++Level 0                0 | A |
++                          ---
++
++>>> A.mro()
++(<class '__main__.A'>, <class '__main__.B'>, <class '__main__.E'>,
++<class '__main__.C'>, <class '__main__.D'>, <class '__main__.F'>,
++<type 'object'>)
++
++=cut
++
++{
++    package Test::O;
++    use mro 'dfs';
++    
++    sub O_or_D { 'Test::O' }
++    sub O_or_F { 'Test::O' }    
++    
++    package Test::F;
++    use base 'Test::O';
++    use mro 'dfs';
++    
++    sub O_or_F { 'Test::F' }    
++    
++    package Test::E;
++    use base 'Test::O';
++    use mro 'dfs';
++        
++    package Test::D;
++    use base 'Test::O';    
++    use mro 'dfs';
++    
++    sub O_or_D { 'Test::D' }
++    sub C_or_D { 'Test::D' }
++        
++    package Test::C;
++    use base ('Test::D', 'Test::F');
++    use mro 'dfs';    
++
++    sub C_or_D { 'Test::C' }
++    
++    package Test::B;
++    use base ('Test::E', 'Test::D');
++    use mro 'dfs';
++        
++    package Test::A;
++    use base ('Test::B', 'Test::C');
++    use mro 'dfs';
++}
++
++is_deeply(
++    mro::get_mro_linear('Test::A'),
++    [ qw(Test::A Test::B Test::E Test::O Test::D Test::C Test::F) ],
++    '... got the right MRO for Test::A');      
++    
++is(Test::A->O_or_D, 'Test::O', '... got the right method dispatch');    
++is(Test::A->O_or_F, 'Test::O', '... got the right method dispatch');   
++
++# NOTE: 
++# this test is particularly interesting because the p5 dispatch
++# would actually call Test::D before Test::C and Test::D is a
++# subclass of Test::C 
++is(Test::A->C_or_D, 'Test::D', '... got the right method dispatch');    
+=== ext/mro/t/basic_04_dfs.t
+==================================================================
+--- ext/mro/t/basic_04_dfs.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/basic_04_dfs.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,41 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 1;
++use mro;
++
++=pod 
++
++From the parrot test t/pmc/object-meths.t
++
++ A   B A   E
++  \ /   \ /
++   C     D
++    \   /
++     \ /
++      F
++
++=cut
++
++{
++    package t::lib::A; use mro 'dfs';
++    package t::lib::B; use mro 'dfs';
++    package t::lib::E; use mro 'dfs';
++    package t::lib::C; use mro 'dfs'; use base ('t::lib::A', 't::lib::B');
++    package t::lib::D; use mro 'dfs'; use base ('t::lib::A', 't::lib::E');
++    package t::lib::F; use mro 'dfs'; use base ('t::lib::C', 't::lib::D');
++}
++
++is_deeply(
++    mro::get_mro_linear('t::lib::F'),
++    [ qw(t::lib::F t::lib::C t::lib::A t::lib::B t::lib::D t::lib::E) ],
++    '... got the right MRO for t::lib::F');  
++
+=== ext/mro/t/basic_05_dfs.t
+==================================================================
+--- ext/mro/t/basic_05_dfs.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/basic_05_dfs.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,62 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 2;
++use mro;
++
++=pod
++
++This tests a strange bug found by Matt S. Trout 
++while building DBIx::Class. Thanks Matt!!!! 
++
++   <A>
++  /   \
++<C>   <B>
++  \   /
++   <D>
++
++=cut
++
++{
++    package Diamond_A;
++    use mro 'dfs'; 
++
++    sub foo { 'Diamond_A::foo' }
++}
++{
++    package Diamond_B;
++    use base 'Diamond_A';
++    use mro 'dfs';     
++
++    sub foo { 'Diamond_B::foo => ' . (shift)->SUPER::foo }
++}
++{
++    package Diamond_C;
++    use mro 'dfs';    
++    use base 'Diamond_A';     
++
++}
++{
++    package Diamond_D;
++    use base ('Diamond_C', 'Diamond_B');
++    use mro 'dfs';    
++    
++    sub foo { 'Diamond_D::foo => ' . (shift)->SUPER::foo }    
++}
++
++is_deeply(
++    mro::get_mro_linear('Diamond_D'),
++    [ qw(Diamond_D Diamond_C Diamond_A Diamond_B) ],
++    '... got the right MRO for Diamond_D');
++
++is(Diamond_D->foo, 
++   'Diamond_D::foo => Diamond_A::foo', 
++   '... got the right next::method dispatch path');
+=== ext/mro/t/vulcan_dfs.t
+==================================================================
+--- ext/mro/t/vulcan_dfs.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/vulcan_dfs.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,73 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 1;
++use mro;
++
++=pod
++
++example taken from: L<http://gauss.gwydiondylan.org/books/drm/drm_50.html>
++
++         Object
++           ^
++           |
++        LifeForm 
++         ^    ^
++        /      \
++   Sentient    BiPedal
++      ^          ^
++      |          |
++ Intelligent  Humanoid
++       ^        ^
++        \      /
++         Vulcan
++
++ define class <sentient> (<life-form>) end class;
++ define class <bipedal> (<life-form>) end class;
++ define class <intelligent> (<sentient>) end class;
++ define class <humanoid> (<bipedal>) end class;
++ define class <vulcan> (<intelligent>, <humanoid>) end class;
++
++=cut
++
++{
++    package Object;    
++    use mro 'dfs';
++    
++    package LifeForm;
++    use mro 'dfs';
++    use base 'Object';
++    
++    package Sentient;
++    use mro 'dfs';
++    use base 'LifeForm';
++    
++    package BiPedal;
++    use mro 'dfs';    
++    use base 'LifeForm';
++    
++    package Intelligent;
++    use mro 'dfs';    
++    use base 'Sentient';
++    
++    package Humanoid;
++    use mro 'dfs';    
++    use base 'BiPedal';
++    
++    package Vulcan;
++    use mro 'dfs';    
++    use base ('Intelligent', 'Humanoid');
++}
++
++is_deeply(
++    mro::get_mro_linear('Vulcan'),
++    [ qw(Vulcan Intelligent Sentient LifeForm Object Humanoid BiPedal) ],
++    '... got the right MRO for the Vulcan Dylan Example');  
+=== ext/mro/t/dbic_c3.t
+==================================================================
+--- ext/mro/t/dbic_c3.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/dbic_c3.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,126 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 1;
++use mro;
++
++=pod
++
++This example is taken from the inheritance graph of DBIx::Class::Core in DBIx::Class v0.07002:
++(No ASCII art this time, this graph is insane)
++
++The xx:: prefixes are just to be sure these bogus declarations never stomp on real ones
++
++=cut
++
++{
++    package xx::DBIx::Class::Core; use mro 'c3';
++    our @ISA = qw/
++      xx::DBIx::Class::Serialize::Storable
++      xx::DBIx::Class::InflateColumn
++      xx::DBIx::Class::Relationship
++      xx::DBIx::Class::PK::Auto
++      xx::DBIx::Class::PK
++      xx::DBIx::Class::Row
++      xx::DBIx::Class::ResultSourceProxy::Table
++      xx::DBIx::Class::AccessorGroup
++    /;
++
++    package xx::DBIx::Class::InflateColumn; use mro 'c3';
++    our @ISA = qw/ xx::DBIx::Class::Row /;
++
++    package xx::DBIx::Class::Row; use mro 'c3';
++    our @ISA = qw/ xx::DBIx::Class /;
++
++    package xx::DBIx::Class; use mro 'c3';
++    our @ISA = qw/
++      xx::DBIx::Class::Componentised
++      xx::Class::Data::Accessor
++    /;
++
++    package xx::DBIx::Class::Relationship; use mro 'c3';
++    our @ISA = qw/
++      xx::DBIx::Class::Relationship::Helpers
++      xx::DBIx::Class::Relationship::Accessor
++      xx::DBIx::Class::Relationship::CascadeActions
++      xx::DBIx::Class::Relationship::ProxyMethods
++      xx::DBIx::Class::Relationship::Base
++      xx::DBIx::Class
++    /;
++
++    package xx::DBIx::Class::Relationship::Helpers; use mro 'c3';
++    our @ISA = qw/
++      xx::DBIx::Class::Relationship::HasMany
++      xx::DBIx::Class::Relationship::HasOne
++      xx::DBIx::Class::Relationship::BelongsTo
++      xx::DBIx::Class::Relationship::ManyToMany
++    /;
++
++    package xx::DBIx::Class::Relationship::ProxyMethods; use mro 'c3';
++    our @ISA = qw/ xx::DBIx::Class /;
++
++    package xx::DBIx::Class::Relationship::Base; use mro 'c3';
++    our @ISA = qw/ xx::DBIx::Class /;
++
++    package xx::DBIx::Class::PK::Auto; use mro 'c3';
++    our @ISA = qw/ xx::DBIx::Class /;
++
++    package xx::DBIx::Class::PK; use mro 'c3';
++    our @ISA = qw/ xx::DBIx::Class::Row /;
++
++    package xx::DBIx::Class::ResultSourceProxy::Table; use mro 'c3';
++    our @ISA = qw/
++      xx::DBIx::Class::AccessorGroup
++      xx::DBIx::Class::ResultSourceProxy
++    /;
++
++    package xx::DBIx::Class::ResultSourceProxy; use mro 'c3';
++    our @ISA = qw/ xx::DBIx::Class /;
++
++    package xx::Class::Data::Accessor; our @ISA = (); use mro 'c3';
++    package xx::DBIx::Class::Relationship::HasMany; our @ISA = (); use mro 'c3';
++    package xx::DBIx::Class::Relationship::HasOne; our @ISA = (); use mro 'c3';
++    package xx::DBIx::Class::Relationship::BelongsTo; our @ISA = (); use mro 'c3';
++    package xx::DBIx::Class::Relationship::ManyToMany; our @ISA = (); use mro 'c3';
++    package xx::DBIx::Class::Componentised; our @ISA = (); use mro 'c3';
++    package xx::DBIx::Class::AccessorGroup; our @ISA = (); use mro 'c3';
++    package xx::DBIx::Class::Serialize::Storable; our @ISA = (); use mro 'c3';
++    package xx::DBIx::Class::Relationship::Accessor; our @ISA = (); use mro 'c3';
++    package xx::DBIx::Class::Relationship::CascadeActions; our @ISA = (); use mro 'c3';
++}
++
++is_deeply(
++    mro::get_mro_linear('xx::DBIx::Class::Core'),
++    [qw/
++        xx::DBIx::Class::Core
++        xx::DBIx::Class::Serialize::Storable
++        xx::DBIx::Class::InflateColumn
++        xx::DBIx::Class::Relationship
++        xx::DBIx::Class::Relationship::Helpers
++        xx::DBIx::Class::Relationship::HasMany
++        xx::DBIx::Class::Relationship::HasOne
++        xx::DBIx::Class::Relationship::BelongsTo
++        xx::DBIx::Class::Relationship::ManyToMany
++        xx::DBIx::Class::Relationship::Accessor
++        xx::DBIx::Class::Relationship::CascadeActions
++        xx::DBIx::Class::Relationship::ProxyMethods
++        xx::DBIx::Class::Relationship::Base
++        xx::DBIx::Class::PK::Auto
++        xx::DBIx::Class::PK
++        xx::DBIx::Class::Row
++        xx::DBIx::Class::ResultSourceProxy::Table
++        xx::DBIx::Class::AccessorGroup
++        xx::DBIx::Class::ResultSourceProxy
++        xx::DBIx::Class
++        xx::DBIx::Class::Componentised
++        xx::Class::Data::Accessor
++    /],
++    '... got the right C3 merge order for xx::DBIx::Class::Core');
+=== ext/mro/t/complex_c3.t
+==================================================================
+--- ext/mro/t/complex_c3.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/complex_c3.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,144 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 11;
++use mro;
++
++=pod
++
++This example is taken from: http://rt.cpan.org/Public/Bug/Display.html?id=20879
++
++               ---     ---     ---
++Level 5     8 | A | 9 | B | A | C |    (More General)
++               ---     ---     ---       V
++                  \     |     /          |
++                   \    |    /           |
++                    \   |   /            |
++                     \  |  /             |
++                       ---               |
++Level 4             7 | D |              |
++                       ---               |
++                      /   \              |
++                     /     \             |
++                  ---       ---          |
++Level 3        4 | G |   6 | E |         |
++                  ---       ---          |
++                   |         |           |
++                   |         |           |
++                  ---       ---          |
++Level 2        3 | H |   5 | F |         |
++                  ---       ---          |
++                      \   /  |           |
++                       \ /   |           |
++                        \    |           |
++                       / \   |           |
++                      /   \  |           |
++                  ---       ---          |
++Level 1        1 | J |   2 | I |         |
++                  ---       ---          |
++                    \       /            |
++                     \     /             |
++                       ---               v
++Level 0             0 | K |            (More Specialized)
++                       ---
++
++
++0123456789A
++KJIHGFEDABC
++
++=cut
++
++{
++    package Test::A; use mro 'c3';
++
++    package Test::B; use mro 'c3';
++
++    package Test::C; use mro 'c3';
++
++    package Test::D; use mro 'c3';
++    use base qw/Test::A Test::B Test::C/;
++
++    package Test::E; use mro 'c3';
++    use base qw/Test::D/;
++
++    package Test::F; use mro 'c3';
++    use base qw/Test::E/;
++
++    package Test::G; use mro 'c3';
++    use base qw/Test::D/;
++
++    package Test::H; use mro 'c3';
++    use base qw/Test::G/;
++
++    package Test::I; use mro 'c3';
++    use base qw/Test::H Test::F/;
++
++    package Test::J; use mro 'c3';
++    use base qw/Test::F/;
++
++    package Test::K; use mro 'c3';
++    use base qw/Test::J Test::I/;
++}
++
++is_deeply(
++    mro::get_mro_linear('Test::A'),
++    [ qw(Test::A) ],
++    '... got the right C3 merge order for Test::A');
++
++is_deeply(
++    mro::get_mro_linear('Test::B'),
++    [ qw(Test::B) ],
++    '... got the right C3 merge order for Test::B');
++
++is_deeply(
++    mro::get_mro_linear('Test::C'),
++    [ qw(Test::C) ],
++    '... got the right C3 merge order for Test::C');
++
++is_deeply(
++    mro::get_mro_linear('Test::D'),
++    [ qw(Test::D Test::A Test::B Test::C) ],
++    '... got the right C3 merge order for Test::D');
++
++is_deeply(
++    mro::get_mro_linear('Test::E'),
++    [ qw(Test::E Test::D Test::A Test::B Test::C) ],
++    '... got the right C3 merge order for Test::E');
++
++is_deeply(
++    mro::get_mro_linear('Test::F'),
++    [ qw(Test::F Test::E Test::D Test::A Test::B Test::C) ],
++    '... got the right C3 merge order for Test::F');
++
++is_deeply(
++    mro::get_mro_linear('Test::G'),
++    [ qw(Test::G Test::D Test::A Test::B Test::C) ],
++    '... got the right C3 merge order for Test::G');
++
++is_deeply(
++    mro::get_mro_linear('Test::H'),
++    [ qw(Test::H Test::G Test::D Test::A Test::B Test::C) ],
++    '... got the right C3 merge order for Test::H');
++
++is_deeply(
++    mro::get_mro_linear('Test::I'),
++    [ qw(Test::I Test::H Test::G Test::F Test::E Test::D Test::A Test::B Test::C) ],
++    '... got the right C3 merge order for Test::I');
++
++is_deeply(
++    mro::get_mro_linear('Test::J'),
++    [ qw(Test::J Test::F Test::E Test::D Test::A Test::B Test::C) ],
++    '... got the right C3 merge order for Test::J');
++
++is_deeply(
++    mro::get_mro_linear('Test::K'),
++    [ qw(Test::K Test::J Test::I Test::H Test::G Test::F Test::E Test::D Test::A Test::B Test::C) ],
++    '... got the right C3 merge order for Test::K');
+=== ext/mro/t/dbic_dfs.t
+==================================================================
+--- ext/mro/t/dbic_dfs.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/dbic_dfs.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,126 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 1;
++use mro;
++
++=pod
++
++This example is taken from the inheritance graph of DBIx::Class::Core in DBIx::Class v0.07002:
++(No ASCII art this time, this graph is insane)
++
++The xx:: prefixes are just to be sure these bogus declarations never stomp on real ones
++
++=cut
++
++{
++    package xx::DBIx::Class::Core; use mro 'dfs';
++    our @ISA = qw/
++      xx::DBIx::Class::Serialize::Storable
++      xx::DBIx::Class::InflateColumn
++      xx::DBIx::Class::Relationship
++      xx::DBIx::Class::PK::Auto
++      xx::DBIx::Class::PK
++      xx::DBIx::Class::Row
++      xx::DBIx::Class::ResultSourceProxy::Table
++      xx::DBIx::Class::AccessorGroup
++    /;
++
++    package xx::DBIx::Class::InflateColumn; use mro 'dfs';
++    our @ISA = qw/ xx::DBIx::Class::Row /;
++
++    package xx::DBIx::Class::Row; use mro 'dfs';
++    our @ISA = qw/ xx::DBIx::Class /;
++
++    package xx::DBIx::Class; use mro 'dfs';
++    our @ISA = qw/
++      xx::DBIx::Class::Componentised
++      xx::Class::Data::Accessor
++    /;
++
++    package xx::DBIx::Class::Relationship; use mro 'dfs';
++    our @ISA = qw/
++      xx::DBIx::Class::Relationship::Helpers
++      xx::DBIx::Class::Relationship::Accessor
++      xx::DBIx::Class::Relationship::CascadeActions
++      xx::DBIx::Class::Relationship::ProxyMethods
++      xx::DBIx::Class::Relationship::Base
++      xx::DBIx::Class
++    /;
++
++    package xx::DBIx::Class::Relationship::Helpers; use mro 'dfs';
++    our @ISA = qw/
++      xx::DBIx::Class::Relationship::HasMany
++      xx::DBIx::Class::Relationship::HasOne
++      xx::DBIx::Class::Relationship::BelongsTo
++      xx::DBIx::Class::Relationship::ManyToMany
++    /;
++
++    package xx::DBIx::Class::Relationship::ProxyMethods; use mro 'dfs';
++    our @ISA = qw/ xx::DBIx::Class /;
++
++    package xx::DBIx::Class::Relationship::Base; use mro 'dfs';
++    our @ISA = qw/ xx::DBIx::Class /;
++
++    package xx::DBIx::Class::PK::Auto; use mro 'dfs';
++    our @ISA = qw/ xx::DBIx::Class /;
++
++    package xx::DBIx::Class::PK; use mro 'dfs';
++    our @ISA = qw/ xx::DBIx::Class::Row /;
++
++    package xx::DBIx::Class::ResultSourceProxy::Table; use mro 'dfs';
++    our @ISA = qw/
++      xx::DBIx::Class::AccessorGroup
++      xx::DBIx::Class::ResultSourceProxy
++    /;
++
++    package xx::DBIx::Class::ResultSourceProxy; use mro 'dfs';
++    our @ISA = qw/ xx::DBIx::Class /;
++
++    package xx::Class::Data::Accessor; our @ISA = (); use mro 'dfs';
++    package xx::DBIx::Class::Relationship::HasMany; our @ISA = (); use mro 'dfs';
++    package xx::DBIx::Class::Relationship::HasOne; our @ISA = (); use mro 'dfs';
++    package xx::DBIx::Class::Relationship::BelongsTo; our @ISA = (); use mro 'dfs';
++    package xx::DBIx::Class::Relationship::ManyToMany; our @ISA = (); use mro 'dfs';
++    package xx::DBIx::Class::Componentised; our @ISA = (); use mro 'dfs';
++    package xx::DBIx::Class::AccessorGroup; our @ISA = (); use mro 'dfs';
++    package xx::DBIx::Class::Serialize::Storable; our @ISA = (); use mro 'dfs';
++    package xx::DBIx::Class::Relationship::Accessor; our @ISA = (); use mro 'dfs';
++    package xx::DBIx::Class::Relationship::CascadeActions; our @ISA = (); use mro 'dfs';
++}
++
++is_deeply(
++    mro::get_mro_linear('xx::DBIx::Class::Core'),
++    [qw/
++        xx::DBIx::Class::Core
++        xx::DBIx::Class::Serialize::Storable
++        xx::DBIx::Class::InflateColumn
++        xx::DBIx::Class::Row
++        xx::DBIx::Class
++        xx::DBIx::Class::Componentised
++        xx::Class::Data::Accessor
++        xx::DBIx::Class::Relationship
++        xx::DBIx::Class::Relationship::Helpers
++        xx::DBIx::Class::Relationship::HasMany
++        xx::DBIx::Class::Relationship::HasOne
++        xx::DBIx::Class::Relationship::BelongsTo
++        xx::DBIx::Class::Relationship::ManyToMany
++        xx::DBIx::Class::Relationship::Accessor
++        xx::DBIx::Class::Relationship::CascadeActions
++        xx::DBIx::Class::Relationship::ProxyMethods
++        xx::DBIx::Class::Relationship::Base
++        xx::DBIx::Class::PK::Auto
++        xx::DBIx::Class::PK
++        xx::DBIx::Class::ResultSourceProxy::Table
++        xx::DBIx::Class::AccessorGroup
++        xx::DBIx::Class::ResultSourceProxy
++    /],
++    '... got the right DFS merge order for xx::DBIx::Class::Core');
+=== ext/mro/t/recursion_c3.t
+==================================================================
+--- ext/mro/t/recursion_c3.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/recursion_c3.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,90 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More;
++use mro;
++
++# XXX needs translation back to classes, etc
++
++plan skip_all => "Your system has no SIGALRM" if !exists $SIG{ALRM};
++plan tests => 8;
++
++=pod
++
++These are like the 010_complex_merge_classless test,
++but an infinite loop has been made in the heirarchy,
++to test that we can fail cleanly instead of going
++into an infinite loop
++
++=cut
++
++# initial setup, everything sane
++{
++    package K;
++    our @ISA = qw/J I/;
++    package J;
++    our @ISA = qw/F/;
++    package I;
++    our @ISA = qw/H F/;
++    package H;
++    our @ISA = qw/G/;
++    package G;
++    our @ISA = qw/D/;
++    package F;
++    our @ISA = qw/E/;
++    package E;
++    our @ISA = qw/D/;
++    package D;
++    our @ISA = qw/A B C/;
++    package C;
++    our @ISA = qw//;
++    package B;
++    our @ISA = qw//;
++    package A;
++    our @ISA = qw//;
++}
++
++# A series of 8 abberations that would cause infinite loops,
++#  each one undoing the work of the previous
++my @loopies = (
++    sub { @E::ISA = qw/F/ },
++    sub { @E::ISA = qw/D/; @C::ISA = qw/F/ },
++    sub { @C::ISA = qw//; @A::ISA = qw/K/ },
++    sub { @A::ISA = qw//; @J::ISA = qw/F K/ },
++    sub { @J::ISA = qw/F/; @H::ISA = qw/K G/ },
++    sub { @H::ISA = qw/G/; @B::ISA = qw/B/ },
++    sub { @B::ISA = qw//; @K::ISA = qw/K J I/ },
++    sub { @K::ISA = qw/J I/; @D::ISA = qw/A H B C/ },
++);
++
++foreach my $loopy (@loopies) {
++    eval {
++        local $SIG{ALRM} = sub { die "ALRMTimeout" };
++        alarm(3);
++        $loopy->();
++        mro::get_mro_linear_c3('K');
++    };
++
++    if(my $err = $@) {
++        if($err =~ /ALRMTimeout/) {
++            ok(0, "Loop terminated by SIGALRM");
++        }
++        elsif($err =~ /Recursive inheritance detected/) {
++            ok(1, "Graceful exception thrown");
++        }
++        else {
++            ok(0, "Unrecognized exception: $err");
++        }
++    }
++    else {
++        ok(0, "Infinite loop apparently succeeded???");
++    }
++}
+=== ext/mro/t/overload_c3.t
+==================================================================
+--- ext/mro/t/overload_c3.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/overload_c3.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,55 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 7;
++use mro;
++
++{
++    package BaseTest;
++    use strict;
++    use warnings;
++    use mro 'c3';
++    
++    package OverloadingTest;
++    use strict;
++    use warnings;
++    use mro 'c3';
++    use base 'BaseTest';        
++    use overload '""' => sub { ref(shift) . " stringified" },
++                 fallback => 1;
++    
++    sub new { bless {} => shift }    
++    
++    package InheritingFromOverloadedTest;
++    use strict;
++    use warnings;
++    use base 'OverloadingTest';
++    use mro 'c3';
++}
++
++my $x = InheritingFromOverloadedTest->new();
++isa_ok($x, 'InheritingFromOverloadedTest');
++
++my $y = OverloadingTest->new();
++isa_ok($y, 'OverloadingTest');
++
++is("$x", 'InheritingFromOverloadedTest stringified', '... got the right value when stringifing');
++is("$y", 'OverloadingTest stringified', '... got the right value when stringifing');
++
++ok(($y eq 'OverloadingTest stringified'), '... eq was handled correctly');
++
++my $result;
++eval { 
++    $result = $x eq 'InheritingFromOverloadedTest stringified' 
++};
++ok(!$@, '... this should not throw an exception');
++ok($result, '... and we should get the true value');
++
+=== ext/mro/t/complex_dfs.t
+==================================================================
+--- ext/mro/t/complex_dfs.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/complex_dfs.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,144 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 11;
++use mro;
++
++=pod
++
++This example is taken from: http://rt.cpan.org/Public/Bug/Display.html?id=20879
++
++               ---     ---     ---
++Level 5     8 | A | 9 | B | A | C |    (More General)
++               ---     ---     ---       V
++                  \     |     /          |
++                   \    |    /           |
++                    \   |   /            |
++                     \  |  /             |
++                       ---               |
++Level 4             7 | D |              |
++                       ---               |
++                      /   \              |
++                     /     \             |
++                  ---       ---          |
++Level 3        4 | G |   6 | E |         |
++                  ---       ---          |
++                   |         |           |
++                   |         |           |
++                  ---       ---          |
++Level 2        3 | H |   5 | F |         |
++                  ---       ---          |
++                      \   /  |           |
++                       \ /   |           |
++                        \    |           |
++                       / \   |           |
++                      /   \  |           |
++                  ---       ---          |
++Level 1        1 | J |   2 | I |         |
++                  ---       ---          |
++                    \       /            |
++                     \     /             |
++                       ---               v
++Level 0             0 | K |            (More Specialized)
++                       ---
++
++
++0123456789A
++KJIHGFEDABC
++
++=cut
++
++{
++    package Test::A; use mro 'dfs';
++
++    package Test::B; use mro 'dfs';
++
++    package Test::C; use mro 'dfs';
++
++    package Test::D; use mro 'dfs';
++    use base qw/Test::A Test::B Test::C/;
++
++    package Test::E; use mro 'dfs';
++    use base qw/Test::D/;
++
++    package Test::F; use mro 'dfs';
++    use base qw/Test::E/;
++
++    package Test::G; use mro 'dfs';
++    use base qw/Test::D/;
++
++    package Test::H; use mro 'dfs';
++    use base qw/Test::G/;
++
++    package Test::I; use mro 'dfs';
++    use base qw/Test::H Test::F/;
++
++    package Test::J; use mro 'dfs';
++    use base qw/Test::F/;
++
++    package Test::K; use mro 'dfs';
++    use base qw/Test::J Test::I/;
++}
++
++is_deeply(
++    mro::get_mro_linear('Test::A'),
++    [ qw(Test::A) ],
++    '... got the right DFS merge order for Test::A');
++
++is_deeply(
++    mro::get_mro_linear('Test::B'),
++    [ qw(Test::B) ],
++    '... got the right DFS merge order for Test::B');
++
++is_deeply(
++    mro::get_mro_linear('Test::C'),
++    [ qw(Test::C) ],
++    '... got the right DFS merge order for Test::C');
++
++is_deeply(
++    mro::get_mro_linear('Test::D'),
++    [ qw(Test::D Test::A Test::B Test::C) ],
++    '... got the right DFS merge order for Test::D');
++
++is_deeply(
++    mro::get_mro_linear('Test::E'),
++    [ qw(Test::E Test::D Test::A Test::B Test::C) ],
++    '... got the right DFS merge order for Test::E');
++
++is_deeply(
++    mro::get_mro_linear('Test::F'),
++    [ qw(Test::F Test::E Test::D Test::A Test::B Test::C) ],
++    '... got the right DFS merge order for Test::F');
++
++is_deeply(
++    mro::get_mro_linear('Test::G'),
++    [ qw(Test::G Test::D Test::A Test::B Test::C) ],
++    '... got the right DFS merge order for Test::G');
++
++is_deeply(
++    mro::get_mro_linear('Test::H'),
++    [ qw(Test::H Test::G Test::D Test::A Test::B Test::C) ],
++    '... got the right DFS merge order for Test::H');
++
++is_deeply(
++    mro::get_mro_linear('Test::I'),
++    [ qw(Test::I Test::H Test::G Test::D Test::A Test::B Test::C Test::F Test::E) ],
++    '... got the right DFS merge order for Test::I');
++
++is_deeply(
++    mro::get_mro_linear('Test::J'),
++    [ qw(Test::J Test::F Test::E Test::D Test::A Test::B Test::C) ],
++    '... got the right DFS merge order for Test::J');
++
++is_deeply(
++    mro::get_mro_linear('Test::K'),
++    [ qw(Test::K Test::J Test::F Test::E Test::D Test::A Test::B Test::C Test::I Test::H Test::G) ],
++    '... got the right DFS merge order for Test::K');
+=== ext/mro/t/inconsistent_c3.t
+==================================================================
+--- ext/mro/t/inconsistent_c3.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/inconsistent_c3.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,48 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 1;
++use mro;
++
++=pod
++
++This example is take from: http://www.python.org/2.3/mro.html
++
++"Serious order disagreement" # From Guido
++class O: pass
++class X(O): pass
++class Y(O): pass
++class A(X,Y): pass
++class B(Y,X): pass
++try:
++    class Z(A,B): pass #creates Z(A,B) in Python 2.2
++except TypeError:
++    pass # Z(A,B) cannot be created in Python 2.3
++
++=cut
++
++{
++    package X;
++    
++    package Y;
++    
++    package XY;
++    our @ISA = ('X', 'Y');
++    
++    package YX;
++    our @ISA = ('Y', 'X');
++
++    package Z;
++    our @ISA = ('XY', 'YX');
++}
++
++eval { mro::get_mro_linear_c3('Z') };
++like($@, qr/^Inconsistent /, '... got the right error with an inconsistent hierarchy');
+=== ext/mro/t/recursion_dfs.t
+==================================================================
+--- ext/mro/t/recursion_dfs.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/recursion_dfs.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,90 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More;
++use mro;
++
++# XXX needs translation back to classes, etc
++
++plan skip_all => "Your system has no SIGALRM" if !exists $SIG{ALRM};
++plan tests => 8;
++
++=pod
++
++These are like the 010_complex_merge_classless test,
++but an infinite loop has been made in the heirarchy,
++to test that we can fail cleanly instead of going
++into an infinite loop
++
++=cut
++
++# initial setup, everything sane
++{
++    package K;
++    our @ISA = qw/J I/;
++    package J;
++    our @ISA = qw/F/;
++    package I;
++    our @ISA = qw/H F/;
++    package H;
++    our @ISA = qw/G/;
++    package G;
++    our @ISA = qw/D/;
++    package F;
++    our @ISA = qw/E/;
++    package E;
++    our @ISA = qw/D/;
++    package D;
++    our @ISA = qw/A B C/;
++    package C;
++    our @ISA = qw//;
++    package B;
++    our @ISA = qw//;
++    package A;
++    our @ISA = qw//;
++}
++
++# A series of 8 abberations that would cause infinite loops,
++#  each one undoing the work of the previous
++my @loopies = (
++    sub { @E::ISA = qw/F/ },
++    sub { @E::ISA = qw/D/; @C::ISA = qw/F/ },
++    sub { @C::ISA = qw//; @A::ISA = qw/K/ },
++    sub { @A::ISA = qw//; @J::ISA = qw/F K/ },
++    sub { @J::ISA = qw/F/; @H::ISA = qw/K G/ },
++    sub { @H::ISA = qw/G/; @B::ISA = qw/B/ },
++    sub { @B::ISA = qw//; @K::ISA = qw/K J I/ },
++    sub { @K::ISA = qw/J I/; @D::ISA = qw/A H B C/ },
++);
++
++foreach my $loopy (@loopies) {
++    eval {
++        local $SIG{ALRM} = sub { die "ALRMTimeout" };
++        alarm(3);
++        $loopy->();
++        mro::get_mro_linear_dfs('K');
++    };
++
++    if(my $err = $@) {
++        if($err =~ /ALRMTimeout/) {
++            ok(0, "Loop terminated by SIGALRM");
++        }
++        elsif($err =~ /Recursive inheritance detected/) {
++            ok(1, "Graceful exception thrown");
++        }
++        else {
++            ok(0, "Unrecognized exception: $err");
++        }
++    }
++    else {
++        ok(0, "Infinite loop apparently succeeded???");
++    }
++}
+=== ext/mro/t/basic_01_c3.t
+==================================================================
+--- ext/mro/t/basic_01_c3.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/basic_01_c3.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,54 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 4;
++use mro;
++
++=pod
++
++This tests the classic diamond inheritence pattern.
++
++   <A>
++  /   \
++<B>   <C>
++  \   /
++   <D>
++
++=cut
++
++{
++    package Diamond_A;
++    sub hello { 'Diamond_A::hello' }
++}
++{
++    package Diamond_B;
++    use base 'Diamond_A';
++}
++{
++    package Diamond_C;
++    use base 'Diamond_A';     
++    
++    sub hello { 'Diamond_C::hello' }
++}
++{
++    package Diamond_D;
++    use base ('Diamond_B', 'Diamond_C');
++    use mro 'c3';
++}
++
++is_deeply(
++    mro::get_mro_linear('Diamond_D'),
++    [ qw(Diamond_D Diamond_B Diamond_C Diamond_A) ],
++    '... got the right MRO for Diamond_D');
++
++is(Diamond_D->hello, 'Diamond_C::hello', '... method resolved itself as expected');
++is(Diamond_D->can('hello')->(), 'Diamond_C::hello', '... can(method) resolved itself as expected');
++is(UNIVERSAL::can("Diamond_D", 'hello')->(), 'Diamond_C::hello', '... can(method) resolved itself as expected');
+=== ext/mro/t/basic_02_c3.t
+==================================================================
+--- ext/mro/t/basic_02_c3.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/basic_02_c3.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,122 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 10;
++use mro;
++
++=pod
++
++This example is take from: http://www.python.org/2.3/mro.html
++
++"My first example"
++class O: pass
++class F(O): pass
++class E(O): pass
++class D(O): pass
++class C(D,F): pass
++class B(D,E): pass
++class A(B,C): pass
++
++
++                          6
++                         ---
++Level 3                 | O |                  (more general)
++                      /  ---  \
++                     /    |    \                      |
++                    /     |     \                     |
++                   /      |      \                    |
++                  ---    ---    ---                   |
++Level 2        3 | D | 4| E |  | F | 5                |
++                  ---    ---    ---                   |
++                   \  \ _ /       |                   |
++                    \    / \ _    |                   |
++                     \  /      \  |                   |
++                      ---      ---                    |
++Level 1            1 | B |    | C | 2                 |
++                      ---      ---                    |
++                        \      /                      |
++                         \    /                      \ /
++                           ---
++Level 0                 0 | A |                (more specialized)
++                           ---
++
++=cut
++
++{
++    package Test::O;
++    use mro 'c3'; 
++    
++    package Test::F;   
++    use mro 'c3';  
++    use base 'Test::O';        
++    
++    package Test::E;
++    use base 'Test::O';    
++    use mro 'c3';     
++    
++    sub C_or_E { 'Test::E' }
++
++    package Test::D;
++    use mro 'c3'; 
++    use base 'Test::O';     
++    
++    sub C_or_D { 'Test::D' }       
++      
++    package Test::C;
++    use base ('Test::D', 'Test::F');
++    use mro 'c3'; 
++    
++    sub C_or_D { 'Test::C' }
++    sub C_or_E { 'Test::C' }    
++        
++    package Test::B;    
++    use mro 'c3'; 
++    use base ('Test::D', 'Test::E');    
++        
++    package Test::A;    
++    use base ('Test::B', 'Test::C');
++    use mro 'c3';    
++}
++
++is_deeply(
++    mro::get_mro_linear('Test::F'),
++    [ qw(Test::F Test::O) ],
++    '... got the right MRO for Test::F');
++
++is_deeply(
++    mro::get_mro_linear('Test::E'),
++    [ qw(Test::E Test::O) ],
++    '... got the right MRO for Test::E');    
++
++is_deeply(
++    mro::get_mro_linear('Test::D'),
++    [ qw(Test::D Test::O) ],
++    '... got the right MRO for Test::D');       
++
++is_deeply(
++    mro::get_mro_linear('Test::C'),
++    [ qw(Test::C Test::D Test::F Test::O) ],
++    '... got the right MRO for Test::C'); 
++
++is_deeply(
++    mro::get_mro_linear('Test::B'),
++    [ qw(Test::B Test::D Test::E Test::O) ],
++    '... got the right MRO for Test::B');     
++
++is_deeply(
++    mro::get_mro_linear('Test::A'),
++    [ qw(Test::A Test::B Test::C Test::D Test::E Test::F Test::O) ],
++    '... got the right MRO for Test::A');  
++    
++is(Test::A->C_or_D, 'Test::C', '... got the expected method output');
++is(Test::A->can('C_or_D')->(), 'Test::C', '... can got the expected method output');
++is(Test::A->C_or_E, 'Test::C', '... got the expected method output');
++is(Test::A->can('C_or_E')->(), 'Test::C', '... can got the expected method output');
+=== ext/mro/t/overload_dfs.t
+==================================================================
+--- ext/mro/t/overload_dfs.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/overload_dfs.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,55 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 7;
++use mro;
++
++{
++    package BaseTest;
++    use strict;
++    use warnings;
++    use mro 'dfs';
++    
++    package OverloadingTest;
++    use strict;
++    use warnings;
++    use mro 'dfs';
++    use base 'BaseTest';        
++    use overload '""' => sub { ref(shift) . " stringified" },
++                 fallback => 1;
++    
++    sub new { bless {} => shift }    
++    
++    package InheritingFromOverloadedTest;
++    use strict;
++    use warnings;
++    use base 'OverloadingTest';
++    use mro 'dfs';
++}
++
++my $x = InheritingFromOverloadedTest->new();
++isa_ok($x, 'InheritingFromOverloadedTest');
++
++my $y = OverloadingTest->new();
++isa_ok($y, 'OverloadingTest');
++
++is("$x", 'InheritingFromOverloadedTest stringified', '... got the right value when stringifing');
++is("$y", 'OverloadingTest stringified', '... got the right value when stringifing');
++
++ok(($y eq 'OverloadingTest stringified'), '... eq was handled correctly');
++
++my $result;
++eval { 
++    $result = $x eq 'InheritingFromOverloadedTest stringified' 
++};
++ok(!$@, '... this should not throw an exception');
++ok($result, '... and we should get the true value');
++
+=== ext/mro/t/basic_03_c3.t
+==================================================================
+--- ext/mro/t/basic_03_c3.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/basic_03_c3.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,108 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 4;
++use mro;
++
++=pod
++
++This example is take from: http://www.python.org/2.3/mro.html
++
++"My second example"
++class O: pass
++class F(O): pass
++class E(O): pass
++class D(O): pass
++class C(D,F): pass
++class B(E,D): pass
++class A(B,C): pass
++
++                           6
++                          ---
++Level 3                  | O |
++                       /  ---  \
++                      /    |    \
++                     /     |     \
++                    /      |      \
++                  ---     ---    ---
++Level 2        2 | E | 4 | D |  | F | 5
++                  ---     ---    ---
++                   \      / \     /
++                    \    /   \   /
++                     \  /     \ /
++                      ---     ---
++Level 1            1 | B |   | C | 3
++                      ---     ---
++                       \       /
++                        \     /
++                          ---
++Level 0                0 | A |
++                          ---
++
++>>> A.mro()
++(<class '__main__.A'>, <class '__main__.B'>, <class '__main__.E'>,
++<class '__main__.C'>, <class '__main__.D'>, <class '__main__.F'>,
++<type 'object'>)
++
++=cut
++
++{
++    package Test::O;
++    use mro 'c3';
++    
++    sub O_or_D { 'Test::O' }
++    sub O_or_F { 'Test::O' }    
++    
++    package Test::F;
++    use base 'Test::O';
++    use mro 'c3';
++    
++    sub O_or_F { 'Test::F' }    
++    
++    package Test::E;
++    use base 'Test::O';
++    use mro 'c3';
++        
++    package Test::D;
++    use base 'Test::O';    
++    use mro 'c3';
++    
++    sub O_or_D { 'Test::D' }
++    sub C_or_D { 'Test::D' }
++        
++    package Test::C;
++    use base ('Test::D', 'Test::F');
++    use mro 'c3';    
++
++    sub C_or_D { 'Test::C' }
++    
++    package Test::B;
++    use base ('Test::E', 'Test::D');
++    use mro 'c3';
++        
++    package Test::A;
++    use base ('Test::B', 'Test::C');
++    use mro 'c3';
++}
++
++is_deeply(
++    mro::get_mro_linear('Test::A'),
++    [ qw(Test::A Test::B Test::E Test::C Test::D Test::F Test::O) ],
++    '... got the right MRO for Test::A');      
++    
++is(Test::A->O_or_D, 'Test::D', '... got the right method dispatch');    
++is(Test::A->O_or_F, 'Test::F', '... got the right method dispatch');   
++
++# NOTE: 
++# this test is particularly interesting because the p5 dispatch
++# would actually call Test::D before Test::C and Test::D is a
++# subclass of Test::C 
++is(Test::A->C_or_D, 'Test::C', '... got the right method dispatch');    
+=== ext/mro/t/basic_04_c3.t
+==================================================================
+--- ext/mro/t/basic_04_c3.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/basic_04_c3.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,41 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 1;
++use mro;
++
++=pod 
++
++From the parrot test t/pmc/object-meths.t
++
++ A   B A   E
++  \ /   \ /
++   C     D
++    \   /
++     \ /
++      F
++
++=cut
++
++{
++    package t::lib::A; use mro 'c3';
++    package t::lib::B; use mro 'c3';
++    package t::lib::E; use mro 'c3';
++    package t::lib::C; use mro 'c3'; use base ('t::lib::A', 't::lib::B');
++    package t::lib::D; use mro 'c3'; use base ('t::lib::A', 't::lib::E');
++    package t::lib::F; use mro 'c3'; use base ('t::lib::C', 't::lib::D');
++}
++
++is_deeply(
++    mro::get_mro_linear('t::lib::F'),
++    [ qw(t::lib::F t::lib::C t::lib::D t::lib::A t::lib::B t::lib::E) ],
++    '... got the right MRO for t::lib::F');  
++
+=== ext/mro/t/basic_05_c3.t
+==================================================================
+--- ext/mro/t/basic_05_c3.t	(/local/perl-current)	(revision 29701)
++++ ext/mro/t/basic_05_c3.t	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,62 @@
++#!./perl
++
++use strict;
++use warnings;
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More tests => 2;
++use mro;
++
++=pod
++
++This tests a strange bug found by Matt S. Trout 
++while building DBIx::Class. Thanks Matt!!!! 
++
++   <A>
++  /   \
++<C>   <B>
++  \   /
++   <D>
++
++=cut
++
++{
++    package Diamond_A;
++    use mro 'c3'; 
++
++    sub foo { 'Diamond_A::foo' }
++}
++{
++    package Diamond_B;
++    use base 'Diamond_A';
++    use mro 'c3';     
++
++    sub foo { 'Diamond_B::foo => ' . (shift)->SUPER::foo }
++}
++{
++    package Diamond_C;
++    use mro 'c3';    
++    use base 'Diamond_A';     
++
++}
++{
++    package Diamond_D;
++    use base ('Diamond_C', 'Diamond_B');
++    use mro 'c3';    
++    
++    sub foo { 'Diamond_D::foo => ' . (shift)->SUPER::foo }    
++}
++
++is_deeply(
++    mro::get_mro_linear('Diamond_D'),
++    [ qw(Diamond_D Diamond_C Diamond_B Diamond_A) ],
++    '... got the right MRO for Diamond_D');
++
++is(Diamond_D->foo, 
++   'Diamond_D::foo => Diamond_B::foo => Diamond_A::foo', 
++   '... got the right next::method dispatch path');
+=== ext/mro/mro.xs
+==================================================================
+--- ext/mro/mro.xs	(/local/perl-current)	(revision 29701)
++++ ext/mro/mro.xs	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,102 @@
++/*	mro.xs
++ *
++ *	Copyright (c) 2006 Brandon L Black
++ *
++ *	You may distribute under the terms of either the GNU General Public
++ *	License or the Artistic License, as specified in the README file.
++ *
++ */
++
++#define PERL_NO_GET_CONTEXT
++#include "EXTERN.h"
++#include "perl.h"
++#include "XSUB.h"
++
++MODULE = mro	PACKAGE = mro
++
++AV*
++get_mro_linear(classname)
++        SV* classname
++    CODE:
++        HV* class_stash;
++        class_stash = gv_stashsv(classname, 0);
++        if(!class_stash) croak("No such class: '%"SVf"'!", SVfARG(classname));
++        RETVAL = mro_linear(class_stash);
++    OUTPUT:
++        RETVAL
++
++AV*
++get_mro_linear_dfs(classname)
++        SV* classname
++    CODE:
++        HV* class_stash;
++        class_stash = gv_stashsv(classname, 0);
++        if(!class_stash) croak("No such class: '%"SVf"'!", SVfARG(classname));
++        RETVAL = mro_linear_dfs(class_stash, 0);
++    OUTPUT:
++        RETVAL
++
++AV*
++get_mro_linear_c3(classname)
++        SV* classname
++    CODE:
++        HV* class_stash;
++        class_stash = gv_stashsv(classname, 0);
++        if(!class_stash) croak("No such class: '%"SVf"'!", SVfARG(classname));
++        RETVAL = mro_linear_c3(class_stash, 0);
++    OUTPUT:
++        RETVAL
++
++void
++set_mro_dfs(classname)
++        SV* classname
++    CODE:
++        HV* class_stash;
++        struct mro_meta* meta;
++        class_stash = gv_stashsv(classname, GV_ADD);
++        if(!class_stash) croak("Cannot create class: '%"SVf"'!", SVfARG(classname));
++        meta = HvMROMETA(class_stash);
++        if(meta->mro_which != MRO_DFS) {
++            meta->mro_which = MRO_DFS;
++	    PL_sub_generation++;
++        }
++
++void
++set_mro_c3(classname)
++        SV* classname
++    CODE:
++        HV* class_stash;
++        struct mro_meta* meta;
++        class_stash = gv_stashsv(classname, GV_ADD);
++        if(!class_stash) croak("Cannot create class: '%"SVf"'!", SVfARG(classname));
++        meta = HvMROMETA(class_stash);
++        if(meta->mro_which != MRO_C3) {
++            meta->mro_which = MRO_C3;
++	    PL_sub_generation++;
++        }
++
++bool
++is_mro_dfs(classname)
++        SV* classname
++    CODE:
++        HV* class_stash;
++        struct mro_meta* meta;
++        class_stash = gv_stashsv(classname, 0);
++        if(!class_stash) croak("No such class: '%"SVf"'!", SVfARG(classname));
++        meta = HvMROMETA(class_stash);
++	RETVAL = (meta->mro_which == MRO_DFS);
++    OUTPUT:
++        RETVAL
++
++bool
++is_mro_c3(classname)
++        SV* classname
++    CODE:
++        HV* class_stash;
++        struct mro_meta* meta;
++        class_stash = gv_stashsv(classname, 0);
++        if(!class_stash) croak("No such class: '%"SVf"'!", SVfARG(classname));
++        meta = HvMROMETA(class_stash);
++	RETVAL = (meta->mro_which == MRO_C3);
++    OUTPUT:
++        RETVAL
+=== ext/mro/Makefile.PL
+==================================================================
+--- ext/mro/Makefile.PL	(/local/perl-current)	(revision 29701)
++++ ext/mro/Makefile.PL	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,35 @@
++use ExtUtils::MakeMaker;
++use Config;
++use File::Spec;
++
++my $e = $Config{'exe_ext'};
++my $o = $Config{'obj_ext'};
++my $exeout_flag = '-o ';
++if ($^O eq 'MSWin32') {
++    if ($Config{'cc'} =~ /^cl/i) {
++	$exeout_flag = '-Fe';
++    }
++    elsif ($Config{'cc'} =~ /^bcc/i) {
++	$exeout_flag = '-e';
++    }
++}
++
++WriteMakefile(
++    NAME	    => "mro",
++    VERSION_FROM    => "mro.pm",
++    MAN3PODS	    => {},
++    clean	    => {
++	FILES	    => "perl$e *$o mro.c *~"
++    }
++);
++
++package MY;
++
++sub post_constants {
++    "\nLIBS = $Config::Config{libs}\n"
++}
++
++sub upupfile {
++    File::Spec->catfile(File::Spec->updir,
++			File::Spec->updir, $_[0]);
++}
+=== ext/mro/mro.pm
+==================================================================
+--- ext/mro/mro.pm	(/local/perl-current)	(revision 29701)
++++ ext/mro/mro.pm	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,91 @@
++#      mro.pm
++#
++#      Copyright (c) 2006 Brandon L Black
++#
++#      You may distribute under the terms of either the GNU General Public
++#      License or the Artistic License, as specified in the README file.
++#
++package mro;
++use strict;
++use warnings;
++
++our $VERSION = '0.01';
++
++use XSLoader ();
++
++sub import {
++    my $arg = $_[1];
++    if($arg) {
++        if($arg eq 'c3') {
++            set_mro_c3(scalar(caller));
++        }
++        elsif($arg eq 'dfs') {
++            set_mro_dfs(scalar(caller));
++        }
++    }
++}
++
++XSLoader::load 'mro';
++
++1;
++
++__END__
++
++=head1 NAME
++
++mro - Method Resolution Order
++
++=head1 SYNOPSIS
++
++	use mro; # just gain access to mro::* functions
++        use mro 'c3'; # enable C3 mro for this class
++        use mro 'dfs'; # enable DFS mro for this class (Perl default)
++
++=head1 DESCRIPTION
++
++TODO
++
++=head1 OVERVIEW
++
++TODO
++
++=head1 Functions
++
++All of these take a scalar classname as the only argument
++
++=head2 mro_linear
++
++Return an arrayref which is the linearized MRO of the given class.
++Uses whichever MRO is currently in effect for that class.
++
++=head2 mro_linear_dfs
++
++Return an arrayref which is the linearized MRO of the given classname.
++Uses the DFS (perl default) MRO algorithm.
++
++=head2 mro_linear_c3
++
++Return an arrayref which is the linearized MRO of the given class.
++Uses the C3 MRO algorithm.
++
++=head2 set_mro_dfs
++
++Sets the MRO of the given class to DFS (perl default).
++
++=head2 set_mro_c3
++
++Sets the MRO of the given class to C3.
++
++=head2 is_mro_dfs
++
++Return boolean indicating whether the given class is using the DFS (Perl default) MRO.
++
++=head2 is_mro_c3
++
++Return boolean indicating whether the given class is using the C3 MRO.
++
++=head1 AUTHOR
++
++Brandon L Black, C<blblack@gmail.com>
++
++=cut
+=== MANIFEST
+==================================================================
+--- MANIFEST	(/local/perl-current)	(revision 29701)
++++ MANIFEST	(/local/perl-c3)	(revision 29701)
+@@ -894,6 +894,30 @@
+ ext/MIME/Base64/t/quoted-print.t	See whether MIME::QuotedPrint works
+ ext/MIME/Base64/t/unicode.t	See whether MIME::Base64 works
+ ext/MIME/Base64/t/warn.t	See whether MIME::Base64 works
++ext/mro/Makefile.PL		mro extension
++ext/mro/mro.xs			mro extension
++ext/mro/mro.pm			mro extension
++ext/mro/t/basic_01_c3.t		mro tests
++ext/mro/t/basic_01_dfs.t		mro tests
++ext/mro/t/basic_02_c3.t		mro tests
++ext/mro/t/basic_02_dfs.t		mro tests
++ext/mro/t/basic_03_c3.t		mro tests
++ext/mro/t/basic_03_dfs.t		mro tests
++ext/mro/t/basic_04_c3.t		mro tests
++ext/mro/t/basic_04_dfs.t		mro tests
++ext/mro/t/basic_05_c3.t		mro tests
++ext/mro/t/basic_05_dfs.t		mro tests
++ext/mro/t/complex_c3.t		mro tests
++ext/mro/t/complex_dfs.t		mro tests
++ext/mro/t/dbic_c3.t		mro tests
++ext/mro/t/dbic_dfs.t		mro tests
++ext/mro/t/inconsistent_c3.t	mro tests
++ext/mro/t/overload_c3.t		mro tests
++ext/mro/t/overload_dfs.t		mro tests
++ext/mro/t/recursion_c3.t		mro tests
++ext/mro/t/recursion_dfs.t		mro tests
++ext/mro/t/vulcan_c3.t		mro tests
++ext/mro/t/vulcan_dfs.t		mro tests
+ ext/NDBM_File/hints/cygwin.pl	Hint for NDBM_File for named architecture
+ ext/NDBM_File/hints/dec_osf.pl	Hint for NDBM_File for named architecture
+ ext/NDBM_File/hints/dynixptx.pl	Hint for NDBM_File for named architecture
+@@ -2860,6 +2884,7 @@
+ mpeix/mpeix_setjmp.c		MPE/iX port
+ mpeix/nm			MPE/iX port
+ mpeix/relink			MPE/iX port
++mro.c				Method Resolution Order code
+ myconfig.SH			Prints summary of the current configuration
+ NetWare/bat/Buildtype.bat	NetWare port
+ NetWare/bat/SetCodeWar.bat	NetWare port
+=== mro.c
+==================================================================
+--- mro.c	(/local/perl-current)	(revision 29701)
++++ mro.c	(/local/perl-c3)	(revision 29701)
+@@ -0,0 +1,307 @@
++/*    mro.c
++ *
++ *    Copyright (C) 2006 by Larry Wall and others
++ *
++ *    You may distribute under the terms of either the GNU General Public
++ *    License or the Artistic License, as specified in the README file.
++ *
++ */
++
++/*
++=head1 MRO Functions
++
++These functions are related to the method resolution order of perl classes
++
++=cut
++*/
++
++#include "EXTERN.h"
++#include "perl.h"
++
++struct mro_meta*
++Perl_mro_meta_init(pTHX_ HV* stash) {
++    struct mro_meta* newmeta;
++
++    assert(HvAUX(stash));
++    assert(!(HvAUX(stash)->xhv_mro_meta));
++    Newxz(newmeta, sizeof(struct mro_meta), char);
++    HvAUX(stash)->xhv_mro_meta = newmeta;
++    return newmeta;
++}
++
++/*
++=for apidoc mro_linear_dfs
++
++Returns the Depth-First Search linearization of @ISA
++the given stash.  The return value is a read-only AV*,
++and is cached based on C<PL_isa_generation>. C<level>
++should be 0 (it is used internally in this function's
++recursion).
++
++=cut
++*/
++AV*
++Perl_mro_linear_dfs(pTHX_ HV *stash, I32 level) {
++    AV* retval;
++    GV** gvp;
++    GV* gv;
++    AV* av;
++    SV** svp;
++    I32 items;
++    AV* subrv;
++    SV** subrv_p;
++    I32 subrv_items;
++    const char* stashname;
++    struct mro_meta* meta;
++
++    assert(stash);
++    assert(HvAUX(stash));
++
++    stashname = HvNAME_get(stash);
++    if (!stashname)
++      Perl_croak(aTHX_
++		 "Can't linearize anonymous symbol table");
++
++    if (level > 100)
++	Perl_croak(aTHX_ "Recursive inheritance detected in package '%s'",
++	      stashname);
++
++    meta = HvMROMETA(stash);
++    if((retval = meta->mro_linear_dfs)) {
++        if(meta->mro_linear_dfs_gen == PL_isa_generation) {
++            /* return the cached linearization if valid */
++            SvREFCNT_inc_simple_void_NN(retval);
++            return retval;
++        }
++        /* decref old cache and forget it */
++        SvREFCNT_dec(retval);
++        meta->mro_linear_dfs = NULL;
++    }
++
++    /* make a new one */
++
++    retval = (AV*)sv_2mortal((SV*)newAV());
++    av_push(retval, newSVpv(stashname, 0)); /* add ourselves at the top */
++
++    gvp = (GV**)hv_fetchs(stash, "ISA", FALSE);
++    av = (gvp && (gv = *gvp) && isGV_with_GP(gv)) ? GvAV(gv) : NULL;
++
++    if(av) {
++        HV* stored = (HV*)sv_2mortal((SV*)newHV());
++        svp = AvARRAY(av);
++        items = AvFILLp(av) + 1;
++        while (items--) {
++            SV* const sv = *svp++;
++            HV* const basestash = gv_stashsv(sv, 0);
++
++            if (!basestash) {
++                if (ckWARN(WARN_MISC))
++                    Perl_warner(aTHX_ packWARN(WARN_MISC), "Can't locate package %"SVf" for @%s::ISA",
++                        SVfARG(sv), stashname);
++                continue;
++            }
++
++            subrv = (AV*)sv_2mortal((SV*)mro_linear_dfs(basestash, level + 1));
++            subrv_p = AvARRAY(subrv);
++            subrv_items = AvFILLp(subrv) + 1;
++            while(subrv_items--) {
++                SV* subsv = *subrv_p++;
++                if(hv_exists_ent(stored, subsv, 0)) continue;
++                av_push(retval, newSVsv(subsv));
++                hv_store_ent(stored, subsv, &PL_sv_undef, 0);
++            }
++        }
++    }
++
++    SvREADONLY_on(retval);
++    SvREFCNT_inc_simple_void_NN(retval); /* for meta storage */
++    SvREFCNT_inc_simple_void_NN(retval); /* for return to caller */
++    meta->mro_linear_dfs = retval;
++    meta->mro_linear_dfs_gen = PL_isa_generation;
++    return retval;
++}
++
++/*
++=for apidoc mro_linear_c3
++
++Returns the C3 linearization of @ISA
++the given stash.  The return value is a read-only AV*,
++and is cached based on C<PL_isa_generation>.  C<level>
++should be 0 (it is used internally in this function's
++recursion).
++
++=cut
++*/
++
++AV*
++Perl_mro_linear_c3(pTHX_ HV* stash, I32 level) {
++    AV* retval;
++    GV** gvp;
++    GV* gv;
++    AV* isa;
++    const char* stashname;
++    STRLEN stashname_len;
++    struct mro_meta* meta;
++
++    assert(stash);
++    assert(HvAUX(stash));
++
++    stashname = HvNAME_get(stash);
++    stashname_len = HvNAMELEN_get(stash);
++    if (!stashname)
++      Perl_croak(aTHX_
++		 "Can't linearize anonymous symbol table");
++
++    if (level > 100)
++	Perl_croak(aTHX_ "Recursive inheritance detected in package '%s'",
++	      stashname);
++
++    meta = HvMROMETA(stash);
++    if((retval = meta->mro_linear_c3)) {
++        if(meta->mro_linear_c3_gen == PL_isa_generation) {
++            /* return cache if valid */
++            SvREFCNT_inc_simple_void_NN(retval);
++            return retval;
++        }
++        /* decref old cache and forget it */
++        SvREFCNT_dec(retval);
++        meta->mro_linear_c3 = NULL;
++    }
++
++    retval = (AV*)sv_2mortal((SV*)newAV());
++    av_push(retval, newSVpvn(stashname, stashname_len)); /* us first */
++
++    gvp = (GV**)hv_fetchs(stash, "ISA", FALSE);
++    isa = (gvp && (gv = *gvp) && isGV_with_GP(gv)) ? GvAV(gv) : NULL;
++
++    if(isa && AvFILLp(isa) >= 0) {
++        SV** seqs_ptr;
++        I32 seqs_items;
++        HV* tails = (HV*)sv_2mortal((SV*)newHV());
++        AV* seqs = (AV*)sv_2mortal((SV*)newAV());
++        I32 items = AvFILLp(isa) + 1;
++        SV** isa_ptr = AvARRAY(isa);
++        while(items--) {
++            AV* isa_lin;
++            SV* isa_item = *isa_ptr++;
++            HV* isa_item_stash = gv_stashsv(isa_item, 0);
++            if(!isa_item_stash)
++                Perl_croak(aTHX_ "Cannot find class %"SVf" for @%s::ISA", SVfARG(isa_item), stashname);
++            isa_lin = (AV*)sv_2mortal((SV*)mro_linear_c3(isa_item_stash, level + 1)); /* recursion */
++            av_push(seqs, (SV*)av_make(AvFILLp(isa_lin)+1, AvARRAY(isa_lin)));
++        }
++        av_push(seqs, (SV*)av_make(AvFILLp(isa)+1, AvARRAY(isa)));
++
++        seqs_ptr = AvARRAY(seqs);
++        seqs_items = AvFILLp(seqs) + 1;
++        while(seqs_items--) {
++            AV* seq = (AV*)*seqs_ptr++;
++            I32 seq_items = AvFILLp(seq);
++            if(seq_items > 0) {
++                SV** seq_ptr = AvARRAY(seq) + 1;
++                while(seq_items--) {
++                    SV* seqitem = *seq_ptr++;
++                    HE* he = hv_fetch_ent(tails, seqitem, 0, 0);
++                    if(!he) {
++                        hv_store_ent(tails, seqitem, newSViv(1), 0);
++                    }
++                    else {
++                        SV* val = HeVAL(he);
++                        sv_inc(val);
++                    }
++                }
++            }
++        }
++
++        while(1) {
++            SV* seqhead = NULL;
++            SV* cand = NULL;
++            SV* winner = NULL;
++            SV* val;
++            HE* tail_entry;
++            AV* seq;
++            SV** avptr = AvARRAY(seqs);
++            items = AvFILLp(seqs)+1;
++            while(items--) {
++                SV** svp;
++                seq = (AV*)*avptr++;
++                if(AvFILLp(seq) < 0) continue;
++                svp = av_fetch(seq, 0, 0);
++                seqhead = *svp;
++                if(!winner) {
++                    cand = seqhead;
++                    if((tail_entry = hv_fetch_ent(tails, cand, 0, 0))
++                       && (val = HeVAL(tail_entry))
++                       && (SvIVx(val) > 0))
++                           continue;
++                    winner = newSVsv(cand);
++                    av_push(retval, winner);
++                }
++                if(!sv_cmp(seqhead, winner)) {
++
++                    /* this is basically shift(@seq) in void context */
++                    SvREFCNT_dec(*AvARRAY(seq));
++                    *AvARRAY(seq) = &PL_sv_undef;
++                    AvARRAY(seq) = AvARRAY(seq) + 1;
++                    AvMAX(seq)--;
++                    AvFILLp(seq)--;
++
++                    if(AvFILLp(seq) < 0) continue;
++                    svp = av_fetch(seq, 0, 0);
++                    seqhead = *svp;
++                    tail_entry = hv_fetch_ent(tails, seqhead, 0, 0);
++                    val = HeVAL(tail_entry);
++                    sv_dec(val);
++                }
++            }
++            if(!cand) break;
++            if(!winner)
++                Perl_croak(aTHX_ "Inconsistent inheritance hierarchy during C3 merge of class '%s': "
++                    "merging failed on parent '%"SVf"'", stashname, SVfARG(cand));
++        }
++    }
++
++    SvREADONLY_on(retval);
++    SvREFCNT_inc_simple_void_NN(retval); /* for meta storage */
++    SvREFCNT_inc_simple_void_NN(retval); /* for return to caller */
++    meta->mro_linear_c3 = retval;
++    meta->mro_linear_c3_gen = PL_isa_generation;
++    return retval;
++}
++
++/*
++=for apidoc mro_linear
++
++Returns either C<mro_linear_c3> or C<mro_linear_dfs> for
++the given stash, dependant upon which MRO is in effect
++for that stash.  The return value is a read-only AV*,
++and is cached based on C<PL_isa_generation>.
++
++=cut
++*/
++AV*
++Perl_mro_linear(pTHX_ HV *stash)
++{
++    struct mro_meta* meta;
++    assert(stash);
++    assert(HvAUX(stash));
++
++    meta = HvMROMETA(stash);
++    if(meta->mro_which == MRO_DFS) {
++        return mro_linear_dfs(stash, 0);
++    } else if(meta->mro_which == MRO_C3) {
++        return mro_linear_c3(stash, 0);
++    } else {
++        Perl_croak(aTHX_ "Internal error: invalid MRO!");
++    }
++}
++
++/*
++ * Local variables:
++ * c-indentation-style: bsd
++ * c-basic-offset: 4
++ * indent-tabs-mode: t
++ * End:
++ *
++ * ex: set ts=8 sts=4 sw=4 noet:
++ */
+=== hv.c
+==================================================================
+--- hv.c	(/local/perl-current)	(revision 29701)
++++ hv.c	(/local/perl-c3)	(revision 29701)
+@@ -1726,6 +1726,7 @@
+ 
+ 	if (SvOOK(hv)) {
+ 	    HE *entry;
++            struct mro_meta *meta;
+ 	    struct xpvhv_aux *iter = HvAUX(hv);
+ 	    /* If there are weak references to this HV, we need to avoid
+ 	       freeing them up here.  In particular we need to keep the AV
+@@ -1757,6 +1758,13 @@
+ 	    iter->xhv_riter = -1; 	/* HvRITER(hv) = -1 */
+ 	    iter->xhv_eiter = NULL;	/* HvEITER(hv) = NULL */
+ 
++            if(meta = iter->xhv_mro_meta) {
++                if(meta->mro_linear_dfs) SvREFCNT_dec(meta->mro_linear_dfs);
++                if(meta->mro_linear_c3)  SvREFCNT_dec(meta->mro_linear_c3);
++                Safefree(meta);
++                iter->xhv_mro_meta = NULL;
++            }
++
+ 	    /* There are now no allocated pointers in the aux structure.  */
+ 
+ 	    SvFLAGS(hv) &= ~SVf_OOK; /* Goodbye, aux structure.  */
+@@ -1878,6 +1886,7 @@
+     iter->xhv_eiter = NULL;	/* HvEITER(hv) = NULL */
+     iter->xhv_name = 0;
+     iter->xhv_backreferences = 0;
++    iter->xhv_mro_meta = NULL;
+     return iter;
+ }
+ 
+=== hv.h
+==================================================================
+--- hv.h	(/local/perl-current)	(revision 29701)
++++ hv.h	(/local/perl-c3)	(revision 29701)
+@@ -38,12 +38,32 @@
+ 
+ /* Subject to change.
+    Don't access this directly.
++   Use the funcs in mro.c
+ */
++
++typedef enum {
++    MRO_DFS, /* 0 */
++    MRO_C3   /* 1 */
++} mro_alg;
++
++struct mro_meta {
++    AV          *mro_linear_dfs; /* cached dfs @ISA linearization */
++    AV          *mro_linear_c3; /* cached c3 @ISA linearization */
++    U32         mro_linear_dfs_gen;    /* PL_isa_generation for above */
++    U32         mro_linear_c3_gen;    /* PL_isa_generation for above */
++    mro_alg     mro_which;      /* which mro alg is in use? */
++};
++
++/* Subject to change.
++   Don't access this directly.
++*/
++
+ struct xpvhv_aux {
+     HEK		*xhv_name;	/* name, if a symbol table */
+     AV		*xhv_backreferences; /* back references for weak references */
+     HE		*xhv_eiter;	/* current entry of iterator */
+     I32		xhv_riter;	/* current root of iterator */
++    struct mro_meta *xhv_mro_meta;
+ };
+ 
+ /* hash structure: */
+@@ -240,6 +260,7 @@
+ #define HvRITER_get(hv)	(SvOOK(hv) ? HvAUX(hv)->xhv_riter : -1)
+ #define HvEITER_get(hv)	(SvOOK(hv) ? HvAUX(hv)->xhv_eiter : 0)
+ #define HvNAME(hv)	HvNAME_get(hv)
++#define HvMROMETA(hv)	(HvAUX(hv)->xhv_mro_meta ? HvAUX(hv)->xhv_mro_meta : mro_meta_init(hv))
+ /* FIXME - all of these should use a UTF8 aware API, which should also involve
+    getting the length. */
+ /* This macro may go away without notice.  */
+=== mg.c
+==================================================================
+--- mg.c	(/local/perl-current)	(revision 29701)
++++ mg.c	(/local/perl-c3)	(revision 29701)
+@@ -1532,6 +1532,7 @@
+     PERL_UNUSED_ARG(sv);
+     PERL_UNUSED_ARG(mg);
+     PL_sub_generation++;
++    PL_isa_generation++;
+     return 0;
+ }
+ 
+=== intrpvar.h
+==================================================================
+--- intrpvar.h	(/local/perl-current)	(revision 29701)
++++ intrpvar.h	(/local/perl-c3)	(revision 29701)
+@@ -532,6 +532,8 @@
+ PERLVARI(Islab_count, U32, 0)	/* Size of the array */
+ #endif
+ 
++PERLVARI(Iisa_generation,U32,1)		/* incr to invalidate @ISA linearization cache */
++
+ /* New variables must be added to the very end, before this comment,
+  * for binary compatibility (the offsets of the old members must not change).
+  * (Don't forget to add your variable also to perl_clone()!)
+=== sv.c
+==================================================================
+--- sv.c	(/local/perl-current)	(revision 29701)
++++ sv.c	(/local/perl-c3)	(revision 29701)
+@@ -11058,6 +11058,7 @@
+     PL_initav		= av_dup_inc(proto_perl->Iinitav, param);
+ 
+     PL_sub_generation	= proto_perl->Isub_generation;
++    PL_isa_generation	= proto_perl->Iisa_generation;
+ 
+     /* funky return mechanisms */
+     PL_forkprocess	= proto_perl->Iforkprocess;
+=== embed.fnc
+==================================================================
+--- embed.fnc	(/local/perl-current)	(revision 29701)
++++ embed.fnc	(/local/perl-c3)	(revision 29701)
+@@ -282,6 +282,10 @@
+ Ap	|GV*	|gv_fetchfile	|NN const char* name
+ Ap	|GV*	|gv_fetchfile_flags|NN const char *const name|const STRLEN len\
+ 				|const U32 flags
++ApM	|struct mro_meta*	|mro_meta_init	|NN HV* stash
++ApM	|AV*	|mro_linear	|NN HV* stash
++ApM	|AV*	|mro_linear_c3	|NN HV* stash|I32 level
++ApM	|AV*	|mro_linear_dfs	|NN HV* stash|I32 level
+ Apd	|GV*	|gv_fetchmeth	|NULLOK HV* stash|NN const char* name|STRLEN len|I32 level
+ Apd	|GV*	|gv_fetchmeth_autoload	|NULLOK HV* stash|NN const char* name|STRLEN len|I32 level
+ Apdmb	|GV*	|gv_fetchmethod	|NULLOK HV* stash|NN const char* name
+
+Property changes on: 
+___________________________________________________________________
+Name: svk:merge
+ +bc823f99-e23a-42ae-8890-ba2193b93f74:/local/perl-current:29691
+
