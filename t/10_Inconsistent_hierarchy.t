@@ -54,4 +54,4 @@ eval {
     Class::C3::calculateMRO('Z') 
 };
 #diag $@;
-like($@, qr/^Inconsistent hierarchy/, '... got the right error with an inconsistent hierarchy');
+like($@, qr/^Inconsistent inheritance hierarchy/, '... got the right error with an inconsistent hierarchy');

@@ -7,12 +7,10 @@ use warnings;
 our $VERSION = '0.15';
 
 BEGIN {
-    eval { require Class::C3::XS };
+    eval "require Class::C3::XS";
     if($@) {
-        eval { require Class::C3::PurePerl };
-        if($@) {
-            die 'Could not load Class::C3::XS or Class::C3::PurePerl!';
-        }
+        eval "require Class::C3::PurePerl";
+        die 'Could not load Class::C3::XS or Class::C3::PurePerl!' if $@;
     }
 }
 
