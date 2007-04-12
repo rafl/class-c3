@@ -1,7 +1,7 @@
 === Makefile.micro
 ==================================================================
---- Makefile.micro	(/local/perl-current)	(revision 30412)
-+++ Makefile.micro	(/local/perl-c3-subg)	(revision 30412)
+--- Makefile.micro	(/local/perl-current)	(revision 30426)
++++ Makefile.micro	(/local/perl-c3-subg)	(revision 30426)
 @@ -10,7 +10,7 @@
  all:	microperl
  
@@ -23,8 +23,8 @@
  
 === embed.h
 ==================================================================
---- embed.h	(/local/perl-current)	(revision 30412)
-+++ embed.h	(/local/perl-c3-subg)	(revision 30412)
+--- embed.h	(/local/perl-current)	(revision 30426)
++++ embed.h	(/local/perl-c3-subg)	(revision 30426)
 @@ -267,6 +267,13 @@
  #define gv_efullname4		Perl_gv_efullname4
  #define gv_fetchfile		Perl_gv_fetchfile
@@ -55,8 +55,8 @@
  #define gv_fetchmethod_autoload(a,b,c)	Perl_gv_fetchmethod_autoload(aTHX_ a,b,c)
 === pod/perlapi.pod
 ==================================================================
---- pod/perlapi.pod	(/local/perl-current)	(revision 30412)
-+++ pod/perlapi.pod	(/local/perl-c3-subg)	(revision 30412)
+--- pod/perlapi.pod	(/local/perl-current)	(revision 30426)
++++ pod/perlapi.pod	(/local/perl-c3-subg)	(revision 30426)
 @@ -1326,7 +1326,7 @@
  The argument C<level> should be either 0 or -1.  If C<level==0>, as a
  side-effect creates a glob with the given C<name> in the given C<stash>
@@ -68,8 +68,8 @@
  GV returned from C<gv_fetchmeth> may be a method cache entry, which is not
 === pp_ctl.c
 ==================================================================
---- pp_ctl.c	(/local/perl-current)	(revision 30412)
-+++ pp_ctl.c	(/local/perl-c3-subg)	(revision 30412)
+--- pp_ctl.c	(/local/perl-current)	(revision 30426)
++++ pp_ctl.c	(/local/perl-c3-subg)	(revision 30426)
 @@ -3511,6 +3511,11 @@
  	&& ret != PL_op->op_next) {	/* Successive compilation. */
  	/* Copy in anything fake and short. */
@@ -84,8 +84,8 @@
  }
 === global.sym
 ==================================================================
---- global.sym	(/local/perl-current)	(revision 30412)
-+++ global.sym	(/local/perl-c3-subg)	(revision 30412)
+--- global.sym	(/local/perl-current)	(revision 30426)
++++ global.sym	(/local/perl-c3-subg)	(revision 30426)
 @@ -135,6 +135,13 @@
  Perl_gv_efullname4
  Perl_gv_fetchfile
@@ -102,8 +102,8 @@
  Perl_gv_fetchmethod
 === perl.c
 ==================================================================
---- perl.c	(/local/perl-current)	(revision 30412)
-+++ perl.c	(/local/perl-c3-subg)	(revision 30412)
+--- perl.c	(/local/perl-current)	(revision 30426)
++++ perl.c	(/local/perl-c3-subg)	(revision 30426)
 @@ -2163,6 +2163,7 @@
      boot_core_PerlIO();
      boot_core_UNIVERSAL();
@@ -114,8 +114,8 @@
  	(*xsinit)(aTHX);	/* in case linked C routines want magical variables */
 === universal.c
 ==================================================================
---- universal.c	(/local/perl-current)	(revision 30412)
-+++ universal.c	(/local/perl-c3-subg)	(revision 30412)
+--- universal.c	(/local/perl-current)	(revision 30426)
++++ universal.c	(/local/perl-c3-subg)	(revision 30426)
 @@ -36,12 +36,12 @@
               int len, int level)
  {
@@ -226,8 +226,8 @@
  
 === scope.c
 ==================================================================
---- scope.c	(/local/perl-current)	(revision 30412)
-+++ scope.c	(/local/perl-c3-subg)	(revision 30412)
+--- scope.c	(/local/perl-current)	(revision 30426)
++++ scope.c	(/local/perl-c3-subg)	(revision 30426)
 @@ -256,7 +256,7 @@
  	GP *gp = Perl_newGP(aTHX_ gv);
  
@@ -248,8 +248,8 @@
  	case SAVEt_FREESV:
 === gv.c
 ==================================================================
---- gv.c	(/local/perl-current)	(revision 30412)
-+++ gv.c	(/local/perl-c3-subg)	(revision 30412)
+--- gv.c	(/local/perl-current)	(revision 30426)
++++ gv.c	(/local/perl-c3-subg)	(revision 30426)
 @@ -260,7 +260,7 @@
  	}
  	LEAVE;
@@ -517,26 +517,45 @@
      }
  
      return 0;
-@@ -1443,7 +1460,8 @@
+@@ -1436,15 +1453,22 @@
+     gp->gp_refcnt++;
+     if (gp->gp_cv) {
+ 	if (gp->gp_cvgen) {
+-	    /* multi-named GPs cannot be used for method cache */
++	    /* If the GP they asked for a reference to contains
++               a method cache entry, clear it first, so that we
++               don't infect them with our cached entry */
+ 	    SvREFCNT_dec(gp->gp_cv);
+ 	    gp->gp_cv = NULL;
+ 	    gp->gp_cvgen = 0;
  	}
- 	else {
- 	    /* Adding a new name to a subroutine invalidates method cache */
+-	else {
+-	    /* Adding a new name to a subroutine invalidates method cache */
 -	    PL_sub_generation++;
-+	    PL_sub_generation++; /* XXX *Foo::bar = *Baz::Quux, but we have no reference to the destination here ... */
-+            /* need to track down gp_ref users, fix it there, and kill this (also wtf is going on above with the refdec? */
- 	}
+-	}
++        /* XXX if anyone finds a method cache regression with
++           the "mro" stuff, turning this else block back on
++           is probably the first place to look --blblack
++        */
++        /*
++        else {
++            PL_sub_generation++;
++        }
++        */
      }
      return gp;
-@@ -1466,7 +1484,7 @@
+ }
+@@ -1465,8 +1489,7 @@
+         return;
      }
      if (gp->gp_cv) {
- 	/* Deleting the name of a subroutine invalidates method cache */
+-	/* Deleting the name of a subroutine invalidates method cache */
 -	PL_sub_generation++;
-+	PL_sub_generation++; /* XXX as above???, or not??? */
++        PL_sub_generation++;
      }
      if (--gp->gp_refcnt > 0) {
  	if (gp->gp_egv == gv)
-@@ -1523,11 +1541,13 @@
+@@ -1523,11 +1546,13 @@
    dVAR;
    MAGIC* const mg = mg_find((SV*)stash, PERL_MAGIC_overload_table);
    AMT amt;
@@ -551,7 +570,7 @@
  	  return (bool)AMT_OVERLOADED(amtp);
        }
        sv_unmagic((SV*)stash, PERL_MAGIC_overload_table);
-@@ -1537,7 +1557,7 @@
+@@ -1537,7 +1562,7 @@
  
    Zero(&amt,1,AMT);
    amt.was_ok_am = PL_amagic_generation;
@@ -560,7 +579,7 @@
    amt.fallback = AMGfallNO;
    amt.flags = 0;
  
-@@ -1649,9 +1669,13 @@
+@@ -1649,9 +1674,13 @@
      dVAR;
      MAGIC *mg;
      AMT *amtp;
@@ -574,7 +593,7 @@
      mg = mg_find((SV*)stash, PERL_MAGIC_overload_table);
      if (!mg) {
        do_update:
-@@ -1661,7 +1685,7 @@
+@@ -1661,7 +1690,7 @@
      assert(mg);
      amtp = (AMT*)mg->mg_ptr;
      if ( amtp->was_ok_am != PL_amagic_generation
@@ -585,8 +604,8 @@
  	CV * const ret = amtp->table[id];
 === lib/constant.pm
 ==================================================================
---- lib/constant.pm	(/local/perl-current)	(revision 30412)
-+++ lib/constant.pm	(/local/perl-c3-subg)	(revision 30412)
+--- lib/constant.pm	(/local/perl-current)	(revision 30426)
++++ lib/constant.pm	(/local/perl-c3-subg)	(revision 30426)
 @@ -5,7 +5,7 @@
  use warnings::register;
  
@@ -601,14 +620,14 @@
  		    Internals::SvREADONLY($scalar, 1);
  		    $symtab->{$name} = \$scalar;
 -		    &Internals::inc_sub_generation;
-+		    mro::invalidate_all_method_caches();
++		    mro::invalidate_method_cache($pkg);
  		} else {
  		    *$full_name = sub () { $scalar };
  		}
 === lib/overload.pm
 ==================================================================
---- lib/overload.pm	(/local/perl-current)	(revision 30412)
-+++ lib/overload.pm	(/local/perl-c3-subg)	(revision 30412)
+--- lib/overload.pm	(/local/perl-current)	(revision 30426)
++++ lib/overload.pm	(/local/perl-c3-subg)	(revision 30426)
 @@ -1,6 +1,6 @@
  package overload;
  
@@ -638,8 +657,8 @@
  
 === lib/mro.pm
 ==================================================================
---- lib/mro.pm	(/local/perl-current)	(revision 30412)
-+++ lib/mro.pm	(/local/perl-c3-subg)	(revision 30412)
+--- lib/mro.pm	(/local/perl-current)	(revision 30426)
++++ lib/mro.pm	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,162 @@
 +#      mro.pm
 +#
@@ -805,8 +824,8 @@
 +=cut
 === win32/Makefile
 ==================================================================
---- win32/Makefile	(/local/perl-current)	(revision 30412)
-+++ win32/Makefile	(/local/perl-c3-subg)	(revision 30412)
+--- win32/Makefile	(/local/perl-current)	(revision 30426)
++++ win32/Makefile	(/local/perl-c3-subg)	(revision 30426)
 @@ -647,6 +647,7 @@
  		..\dump.c	\
  		..\globals.c	\
@@ -817,8 +836,8 @@
  		..\mathoms.c    \
 === win32/makefile.mk
 ==================================================================
---- win32/makefile.mk	(/local/perl-current)	(revision 30412)
-+++ win32/makefile.mk	(/local/perl-c3-subg)	(revision 30412)
+--- win32/makefile.mk	(/local/perl-current)	(revision 30426)
++++ win32/makefile.mk	(/local/perl-c3-subg)	(revision 30426)
 @@ -816,6 +816,7 @@
  		..\dump.c	\
  		..\globals.c	\
@@ -829,8 +848,8 @@
  		..\mathoms.c    \
 === win32/Makefile.ce
 ==================================================================
---- win32/Makefile.ce	(/local/perl-current)	(revision 30412)
-+++ win32/Makefile.ce	(/local/perl-c3-subg)	(revision 30412)
+--- win32/Makefile.ce	(/local/perl-current)	(revision 30426)
++++ win32/Makefile.ce	(/local/perl-c3-subg)	(revision 30426)
 @@ -571,6 +571,7 @@
  		..\dump.c	\
  		..\globals.c	\
@@ -849,8 +868,8 @@
  $(DLLDIR)\mathoms.obj \
 === t/TEST
 ==================================================================
---- t/TEST	(/local/perl-current)	(revision 30412)
-+++ t/TEST	(/local/perl-c3-subg)	(revision 30412)
+--- t/TEST	(/local/perl-current)	(revision 30426)
++++ t/TEST	(/local/perl-c3-subg)	(revision 30426)
 @@ -104,7 +104,7 @@
  }
  
@@ -864,8 +883,8 @@
 ==================================================================
 === t/mro/basic_01_dfs.t
 ==================================================================
---- t/mro/basic_01_dfs.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/basic_01_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/basic_01_dfs.t	(/local/perl-current)	(revision 30426)
++++ t/mro/basic_01_dfs.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,53 @@
 +#!./perl
 +
@@ -922,8 +941,8 @@
 +is(UNIVERSAL::can("Diamond_D", 'hello')->(), 'Diamond_A::hello', '... can(method) resolved itself as expected');
 === t/mro/vulcan_c3.t
 ==================================================================
---- t/mro/vulcan_c3.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/vulcan_c3.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/vulcan_c3.t	(/local/perl-current)	(revision 30426)
++++ t/mro/vulcan_c3.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,73 @@
 +#!./perl
 +
@@ -1000,8 +1019,8 @@
 +    '... got the right MRO for the Vulcan Dylan Example');  
 === t/mro/basic_02_dfs.t
 ==================================================================
---- t/mro/basic_02_dfs.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/basic_02_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/basic_02_dfs.t	(/local/perl-current)	(revision 30426)
++++ t/mro/basic_02_dfs.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,121 @@
 +#!./perl
 +
@@ -1126,8 +1145,8 @@
 +is(Test::A->can('C_or_E')->(), 'Test::E', '... can got the expected method output');
 === t/mro/basic_03_dfs.t
 ==================================================================
---- t/mro/basic_03_dfs.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/basic_03_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/basic_03_dfs.t	(/local/perl-current)	(revision 30426)
++++ t/mro/basic_03_dfs.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,107 @@
 +#!./perl
 +
@@ -1238,8 +1257,8 @@
 +is(Test::A->C_or_D, 'Test::D', '... got the right method dispatch');    
 === t/mro/basic_04_dfs.t
 ==================================================================
---- t/mro/basic_04_dfs.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/basic_04_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/basic_04_dfs.t	(/local/perl-current)	(revision 30426)
++++ t/mro/basic_04_dfs.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,40 @@
 +#!./perl
 +
@@ -1283,8 +1302,8 @@
 +
 === t/mro/basic_05_dfs.t
 ==================================================================
---- t/mro/basic_05_dfs.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/basic_05_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/basic_05_dfs.t	(/local/perl-current)	(revision 30426)
++++ t/mro/basic_05_dfs.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,61 @@
 +#!./perl
 +
@@ -1349,8 +1368,8 @@
 +   '... got the right next::method dispatch path');
 === t/mro/vulcan_dfs.t
 ==================================================================
---- t/mro/vulcan_dfs.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/vulcan_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/vulcan_dfs.t	(/local/perl-current)	(revision 30426)
++++ t/mro/vulcan_dfs.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,73 @@
 +#!./perl
 +
@@ -1427,8 +1446,8 @@
 +    '... got the right MRO for the Vulcan Dylan Example');  
 === t/mro/dbic_c3.t
 ==================================================================
---- t/mro/dbic_c3.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/dbic_c3.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/dbic_c3.t	(/local/perl-current)	(revision 30426)
++++ t/mro/dbic_c3.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,125 @@
 +#!./perl
 +
@@ -1557,9 +1576,9 @@
 +    '... got the right C3 merge order for xx::DBIx::Class::Core');
 === t/mro/method_caching.t
 ==================================================================
---- t/mro/method_caching.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/method_caching.t	(/local/perl-c3-subg)	(revision 30412)
-@@ -0,0 +1,44 @@
+--- t/mro/method_caching.t	(/local/perl-current)	(revision 30426)
++++ t/mro/method_caching.t	(/local/perl-c3-subg)	(revision 30426)
+@@ -0,0 +1,46 @@
 +#!./perl
 +
 +use strict;
@@ -1593,6 +1612,8 @@
 +    sub { *MCTest::Base::foo = sub { $_[1]+5 }; is(MCTest::Derived->foo(0), 5); },
 +    sub { local *MCTest::Base::foo = sub { $_[1]+6 }; is(MCTest::Derived->foo(0), 6); },
 +    sub { is(MCTest::Derived->foo(0), 5); },
++    sub { sub FFF { $_[1]+9 }; local *MCTest::Base::foo = *FFF; is(MCTest::Derived->foo(0), 9); },
++    sub { is(MCTest::Derived->foo(0), 5); },
 +    sub { *ASDF::asdf = sub { $_[1]+7 }; *MCTest::Base::foo = \&ASDF::asdf; is(MCTest::Derived->foo(0), 7); },
 +    sub { *ASDF::asdf = sub { $_[1]+7 }; *MCTest::Base::foo = \&ASDF::asdf; is(MCTest::Derived->foo(0), 7); },
 +    sub { undef *MCTest::Base::foo; eval { MCTest::Derived->foo(0) }; like($@, qr/locate object method/); },
@@ -1606,8 +1627,8 @@
 +$_->() for (@testsubs);
 === t/mro/complex_c3.t
 ==================================================================
---- t/mro/complex_c3.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/complex_c3.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/complex_c3.t	(/local/perl-current)	(revision 30426)
++++ t/mro/complex_c3.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,148 @@
 +#!./perl
 +
@@ -1759,8 +1780,8 @@
 +is(Test::K->testmeth(), "right", 'next::method working ok');
 === t/mro/dbic_dfs.t
 ==================================================================
---- t/mro/dbic_dfs.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/dbic_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/dbic_dfs.t	(/local/perl-current)	(revision 30426)
++++ t/mro/dbic_dfs.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,125 @@
 +#!./perl
 +
@@ -1889,8 +1910,8 @@
 +    '... got the right DFS merge order for xx::DBIx::Class::Core');
 === t/mro/recursion_c3.t
 ==================================================================
---- t/mro/recursion_c3.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/recursion_c3.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/recursion_c3.t	(/local/perl-current)	(revision 30426)
++++ t/mro/recursion_c3.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,90 @@
 +#!./perl
 +
@@ -1984,8 +2005,8 @@
 +}
 === t/mro/overload_c3.t
 ==================================================================
---- t/mro/overload_c3.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/overload_c3.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/overload_c3.t	(/local/perl-current)	(revision 30426)
++++ t/mro/overload_c3.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,54 @@
 +#!./perl
 +
@@ -2043,8 +2064,8 @@
 +
 === t/mro/complex_dfs.t
 ==================================================================
---- t/mro/complex_dfs.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/complex_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/complex_dfs.t	(/local/perl-current)	(revision 30426)
++++ t/mro/complex_dfs.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,143 @@
 +#!./perl
 +
@@ -2191,8 +2212,8 @@
 +    '... got the right DFS merge order for Test::K');
 === t/mro/inconsistent_c3.t
 ==================================================================
---- t/mro/inconsistent_c3.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/inconsistent_c3.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/inconsistent_c3.t	(/local/perl-current)	(revision 30426)
++++ t/mro/inconsistent_c3.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,47 @@
 +#!./perl
 +
@@ -2243,8 +2264,8 @@
 +like($@, qr/^Inconsistent /, '... got the right error with an inconsistent hierarchy');
 === t/mro/recursion_dfs.t
 ==================================================================
---- t/mro/recursion_dfs.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/recursion_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/recursion_dfs.t	(/local/perl-current)	(revision 30426)
++++ t/mro/recursion_dfs.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,90 @@
 +#!./perl
 +
@@ -2338,8 +2359,8 @@
 +}
 === t/mro/basic_01_c3.t
 ==================================================================
---- t/mro/basic_01_c3.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/basic_01_c3.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/basic_01_c3.t	(/local/perl-current)	(revision 30426)
++++ t/mro/basic_01_c3.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,53 @@
 +#!./perl
 +
@@ -2396,8 +2417,8 @@
 +is(UNIVERSAL::can("Diamond_D", 'hello')->(), 'Diamond_C::hello', '... can(method) resolved itself as expected');
 === t/mro/basic_02_c3.t
 ==================================================================
---- t/mro/basic_02_c3.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/basic_02_c3.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/basic_02_c3.t	(/local/perl-current)	(revision 30426)
++++ t/mro/basic_02_c3.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,121 @@
 +#!./perl
 +
@@ -2522,8 +2543,8 @@
 +is(Test::A->can('C_or_E')->(), 'Test::C', '... can got the expected method output');
 === t/mro/overload_dfs.t
 ==================================================================
---- t/mro/overload_dfs.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/overload_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/overload_dfs.t	(/local/perl-current)	(revision 30426)
++++ t/mro/overload_dfs.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,54 @@
 +#!./perl
 +
@@ -2581,8 +2602,8 @@
 +
 === t/mro/basic_03_c3.t
 ==================================================================
---- t/mro/basic_03_c3.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/basic_03_c3.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/basic_03_c3.t	(/local/perl-current)	(revision 30426)
++++ t/mro/basic_03_c3.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,107 @@
 +#!./perl
 +
@@ -2693,8 +2714,8 @@
 +is(Test::A->C_or_D, 'Test::C', '... got the right method dispatch');    
 === t/mro/basic_04_c3.t
 ==================================================================
---- t/mro/basic_04_c3.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/basic_04_c3.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/basic_04_c3.t	(/local/perl-current)	(revision 30426)
++++ t/mro/basic_04_c3.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,40 @@
 +#!./perl
 +
@@ -2738,8 +2759,8 @@
 +
 === t/mro/basic_05_c3.t
 ==================================================================
---- t/mro/basic_05_c3.t	(/local/perl-current)	(revision 30412)
-+++ t/mro/basic_05_c3.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/mro/basic_05_c3.t	(/local/perl-current)	(revision 30426)
++++ t/mro/basic_05_c3.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -0,0 +1,61 @@
 +#!./perl
 +
@@ -2804,8 +2825,8 @@
 +   '... got the right next::method dispatch path');
 === t/op/magic.t
 ==================================================================
---- t/op/magic.t	(/local/perl-current)	(revision 30412)
-+++ t/op/magic.t	(/local/perl-c3-subg)	(revision 30412)
+--- t/op/magic.t	(/local/perl-current)	(revision 30426)
++++ t/op/magic.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -440,7 +440,10 @@
  if (!$Is_VMS) {
      local @ISA;
@@ -2820,8 +2841,8 @@
      eval { %ENV = (PATH => __PACKAGE__) };
 === NetWare/Makefile
 ==================================================================
---- NetWare/Makefile	(/local/perl-current)	(revision 30412)
-+++ NetWare/Makefile	(/local/perl-c3-subg)	(revision 30412)
+--- NetWare/Makefile	(/local/perl-current)	(revision 30426)
++++ NetWare/Makefile	(/local/perl-c3-subg)	(revision 30426)
 @@ -701,6 +701,7 @@
  		..\dump.c	\
  		..\globals.c	\
@@ -2832,8 +2853,8 @@
                  ..\mathoms.c    \
 === vms/descrip_mms.template
 ==================================================================
---- vms/descrip_mms.template	(/local/perl-current)	(revision 30412)
-+++ vms/descrip_mms.template	(/local/perl-c3-subg)	(revision 30412)
+--- vms/descrip_mms.template	(/local/perl-current)	(revision 30426)
++++ vms/descrip_mms.template	(/local/perl-c3-subg)	(revision 30426)
 @@ -279,13 +279,13 @@
  
  #### End of system configuration section. ####
@@ -2850,7 +2871,7 @@
  obj1 = globals$(O) gv$(O) hv$(O) locale$(O) mathoms$(O) mg$(O) miniperlmain$(O) numeric$(O) op$(O) pad$(O)
  obj2 = perl$(O) perlapi$(O) perlio$(O) perly$(O) pp$(O) pp_ctl$(O) pp_hot$(O) reentr$(O)
  obj3 = pp_pack$(O) pp_sort$(O) pp_sys$(O) regcomp$(O) regexec$(O) run$(O) scope$(O) sv$(O) taint$(O) toke$(O)
-@@ -1615,6 +1615,8 @@
+@@ -1619,6 +1619,8 @@
  	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
  gv$(O) : gv.c $(h)
  	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
@@ -2861,8 +2882,8 @@
  locale$(O) : locale.c $(h)
 === Makefile.SH
 ==================================================================
---- Makefile.SH	(/local/perl-current)	(revision 30412)
-+++ Makefile.SH	(/local/perl-c3-subg)	(revision 30412)
+--- Makefile.SH	(/local/perl-current)	(revision 30426)
++++ Makefile.SH	(/local/perl-c3-subg)	(revision 30426)
 @@ -367,7 +367,7 @@
  h5 = utf8.h warnings.h
  h = $(h1) $(h2) $(h3) $(h4) $(h5)
@@ -2883,8 +2904,8 @@
  
 === proto.h
 ==================================================================
---- proto.h	(/local/perl-current)	(revision 30412)
-+++ proto.h	(/local/perl-c3-subg)	(revision 30412)
+--- proto.h	(/local/perl-current)	(revision 30426)
++++ proto.h	(/local/perl-c3-subg)	(revision 30426)
 @@ -635,6 +635,25 @@
  PERL_CALLCONV GV*	Perl_gv_fetchfile_flags(pTHX_ const char *const name, const STRLEN len, const U32 flags)
  			__attribute__nonnull__(pTHX_1);
@@ -2913,8 +2934,8 @@
  
 === ext/B/t/b.t
 ==================================================================
---- ext/B/t/b.t	(/local/perl-current)	(revision 30412)
-+++ ext/B/t/b.t	(/local/perl-c3-subg)	(revision 30412)
+--- ext/B/t/b.t	(/local/perl-current)	(revision 30426)
++++ ext/B/t/b.t	(/local/perl-c3-subg)	(revision 30426)
 @@ -169,7 +169,7 @@
  {
      no warnings 'once';
@@ -2926,8 +2947,8 @@
  
 === MANIFEST
 ==================================================================
---- MANIFEST	(/local/perl-current)	(revision 30412)
-+++ MANIFEST	(/local/perl-c3-subg)	(revision 30412)
+--- MANIFEST	(/local/perl-current)	(revision 30426)
++++ MANIFEST	(/local/perl-c3-subg)	(revision 30426)
 @@ -2252,6 +2252,7 @@
  lib/Module/Pluggable/t/lib/OddTest/Plugin/-Dodgy.pm	Module::Pluggable tests
  lib/Module/Pluggable/t/lib/OddTest/Plugin/Foo.pm	Module::Pluggable tests
@@ -2944,7 +2965,7 @@
  myconfig.SH			Prints summary of the current configuration
  NetWare/bat/Buildtype.bat	NetWare port
  NetWare/bat/SetCodeWar.bat	NetWare port
-@@ -3618,6 +3620,28 @@
+@@ -3619,6 +3621,28 @@
  t/lib/warnings/universal	Tests for universal.c for warnings.t
  t/lib/warnings/utf8		Tests for utf8.c for warnings.t
  t/lib/warnings/util		Tests for util.c for warnings.t
@@ -2975,9 +2996,9 @@
  t/op/64bitint.t			See if 64 bit integers work
 === mro.c
 ==================================================================
---- mro.c	(/local/perl-current)	(revision 30412)
-+++ mro.c	(/local/perl-c3-subg)	(revision 30412)
-@@ -0,0 +1,886 @@
+--- mro.c	(/local/perl-current)	(revision 30426)
++++ mro.c	(/local/perl-c3-subg)	(revision 30426)
+@@ -0,0 +1,888 @@
 +/*    mro.c
 + *
 + *    Copyright (c) 2007 Brandon L Black
@@ -3447,20 +3468,15 @@
 +__dopoptosub_at(const PERL_CONTEXT *cxstk, I32 startingblock) {
 +    I32 i;
 +    for (i = startingblock; i >= 0; i--) {
-+        register const PERL_CONTEXT * const cx = &cxstk[i];
-+        if(CxTYPE(cx) == CXt_SUB) {
-+            DEBUG_l( Perl_deb(aTHX_ "(Found sub #%ld)\n", (long)i));
-+            return i;
-+        }
++        if(CxTYPE((PERL_CONTEXT*)(&cxstk[i])) == CXt_SUB) return i;
 +    }
 +    return i;
 +}
 +
 +STATIC SV*
-+__nextcan(pTHX_ SV* self, I32 barf)
++__nextcan(pTHX_ SV* self, I32 throw_nomethod)
 +{
-+    register I32 cxix = __dopoptosub_at(cxstack, cxstack_ix);
-+    register const PERL_CONTEXT *cx;
++    register I32 cxix;
 +    register const PERL_CONTEXT *ccstack = cxstack;
 +    const PERL_SI *top_si = PL_curstackinfo;
 +    HV* selfstash;
@@ -3492,37 +3508,36 @@
 +
 +    assert(selfstash);
 +
++    hvname = HvNAME_get(selfstash);
++    if (!hvname)
++        croak("Can't use anonymous symbol table for method lookup");
++
++    cxix = __dopoptosub_at(cxstack, cxstack_ix);
++
++    /* This block finds the contextually-enclosing fully-qualified subname,
++       much like looking at (caller($i))[3] until you find a real sub that
++       isn't ANON, etc */
 +    for (;;) {
 +        /* we may be in a higher stacklevel, so dig down deeper */
-+        while (cxix < 0 && top_si->si_type != PERLSI_MAIN) {
++        while (cxix < 0) {
++            if(top_si->si_type == PERLSI_MAIN)
++                croak("next::method/next::can/maybe::next::method must be used in method context");
 +            top_si = top_si->si_prev;
 +            ccstack = top_si->si_cxstack;
 +            cxix = __dopoptosub_at(ccstack, top_si->si_cxix);
 +        }
 +
-+        if (cxix < 0) {
-+            croak("next::method/next::can/maybe::next::method must be used in method context");
-+        }
-+    
-+        /* caller() should not report the automatic calls to &DB::sub */
-+        if (PL_DBsub && GvCV(PL_DBsub) && cxix >= 0 && ccstack[cxix].blk_sub.cv == GvCV(PL_DBsub))
-+            continue;
-+
-+        cx = &ccstack[cxix];
-+        if(CxTYPE(cx) != CXt_SUB) {
++        if(CxTYPE((PERL_CONTEXT*)(&ccstack[cxix])) != CXt_SUB
++          || (PL_DBsub && GvCV(PL_DBsub) && ccstack[cxix].blk_sub.cv == GvCV(PL_DBsub))) {
 +            cxix = __dopoptosub_at(ccstack, cxix - 1);
 +            continue;
 +        }
 +
 +        {
 +            const I32 dbcxix = __dopoptosub_at(ccstack, cxix - 1);
-+            /* We expect that ccstack[dbcxix] is CXt_SUB, anyway, the
-+               field below is defined for any cx. */
-+            /* caller() should not report the automatic calls to &DB::sub */
 +            if (PL_DBsub && GvCV(PL_DBsub) && dbcxix >= 0 && ccstack[dbcxix].blk_sub.cv == GvCV(PL_DBsub)) {
-+                cx = &ccstack[dbcxix];
-+                if(CxTYPE(cx) != CXt_SUB) {
-+                    cxix = __dopoptosub_at(ccstack, cxix - 1);
++                if(CxTYPE((PERL_CONTEXT*)(&ccstack[dbcxix])) != CXt_SUB) {
++                    cxix = dbcxix;
 +                    continue;
 +                }
 +            }
@@ -3543,15 +3558,6 @@
 +        fq_subname = SvPVX(sv);
 +        fq_subname_len = SvCUR(sv);
 +
-+        selfmeta = HvMROMETA(selfstash);
-+        if(!(nmcache = selfmeta->mro_nextmethod)) {
-+            nmcache = selfmeta->mro_nextmethod = newHV();
-+        }
-+
-+        if((cache_entry = hv_fetch_ent(nmcache, sv, 0, 0))) {
-+            return SvREFCNT_inc_simple_NN(HeVAL(cache_entry));
-+        }
-+
 +        subname = strrchr(fq_subname, ':');
 +        if(!subname)
 +            croak("next::method/next::can/maybe::next::method cannot find enclosing method");
@@ -3562,28 +3568,45 @@
 +            cxix = __dopoptosub_at(ccstack, cxix - 1);
 +            continue;
 +        }
-+        stashname_len = subname - fq_subname - 2;
-+        stashname = sv_2mortal(newSVpvn(fq_subname, stashname_len));
++        break;
++    }
 +
-+        hvname = HvNAME_get(selfstash);
-+        if (!hvname)
-+            croak("Can't use anonymous symbol table for method lookup");
++    /* If we made it to here, we found our context */
 +
-+        linear_av = mro_linear_c3(selfstash, 0); /* has ourselves at the top of the list */
-+        sv_2mortal((SV*)linear_av);
++    selfmeta = HvMROMETA(selfstash);
++    if(!(nmcache = selfmeta->mro_nextmethod)) {
++        nmcache = selfmeta->mro_nextmethod = newHV();
++    }
 +
-+        linear_svp = AvARRAY(linear_av);
-+        items = AvFILLp(linear_av) + 1;
-+
-+        while (items--) {
-+            linear_sv = *linear_svp++;
-+            assert(linear_sv);
-+            if(sv_eq(linear_sv, stashname))
-+                break;
++    if((cache_entry = hv_fetch_ent(nmcache, sv, 0, 0))) {
++        SV* val = HeVAL(cache_entry);
++        if(val == &PL_sv_undef) {
++            if(throw_nomethod)
++                croak("No next::method '%s' found for %s", subname, hvname);
++            return &PL_sv_undef;
 +        }
++        return SvREFCNT_inc_simple_NN(val);
++    }
 +
-+        if(items < 0) goto no_next_method;
++    /* beyond here is just for cache misses, so perf isn't as critical */
 +
++    stashname_len = subname - fq_subname - 2;
++    stashname = sv_2mortal(newSVpvn(fq_subname, stashname_len));
++
++    linear_av = mro_linear(selfstash); /* has ourselves at the top of the list */
++    sv_2mortal((SV*)linear_av);
++
++    linear_svp = AvARRAY(linear_av);
++    items = AvFILLp(linear_av) + 1;
++
++    while (items--) {
++        linear_sv = *linear_svp++;
++        assert(linear_sv);
++        if(sv_eq(linear_sv, stashname))
++            break;
++    }
++
++    if(items > 0) {
 +        while (items--) {
 +            linear_sv = *linear_svp++;
 +            assert(linear_sv);
@@ -3612,12 +3635,12 @@
 +                return (SV*)cand_cv;
 +            }
 +        }
-+
-+      no_next_method:
-+        hv_store_ent(nmcache, newSVsv(sv), &PL_sv_undef, 0);
-+        if(!barf) return &PL_sv_undef;
-+        croak("No next::method '%s' found for %s", subname, hvname);
 +    }
++
++    hv_store_ent(nmcache, newSVsv(sv), &PL_sv_undef, 0);
++    if(throw_nomethod)
++        croak("No next::method '%s' found for %s", subname, hvname);
++    return &PL_sv_undef;
 +}
 +
 +#include "XSUB.h"
@@ -3866,8 +3889,8 @@
 + */
 === hv.c
 ==================================================================
---- hv.c	(/local/perl-current)	(revision 30412)
-+++ hv.c	(/local/perl-c3-subg)	(revision 30412)
+--- hv.c	(/local/perl-current)	(revision 30426)
++++ hv.c	(/local/perl-c3-subg)	(revision 30426)
 @@ -1531,7 +1531,7 @@
  	return;
      val = HeVAL(entry);
@@ -3911,8 +3934,8 @@
  
 === hv.h
 ==================================================================
---- hv.h	(/local/perl-current)	(revision 30412)
-+++ hv.h	(/local/perl-c3-subg)	(revision 30412)
+--- hv.h	(/local/perl-current)	(revision 30426)
++++ hv.h	(/local/perl-c3-subg)	(revision 30426)
 @@ -38,12 +38,38 @@
  
  /* Subject to change.
@@ -3962,8 +3985,8 @@
  /* This macro may go away without notice.  */
 === mg.c
 ==================================================================
---- mg.c	(/local/perl-current)	(revision 30412)
-+++ mg.c	(/local/perl-c3-subg)	(revision 30412)
+--- mg.c	(/local/perl-current)	(revision 30426)
++++ mg.c	(/local/perl-c3-subg)	(revision 30426)
 @@ -1530,8 +1530,18 @@
  {
      dVAR;
@@ -3995,8 +4018,8 @@
      return 0;
 === op.c
 ==================================================================
---- op.c	(/local/perl-current)	(revision 30412)
-+++ op.c	(/local/perl-c3-subg)	(revision 30412)
+--- op.c	(/local/perl-current)	(revision 30426)
++++ op.c	(/local/perl-c3-subg)	(revision 30426)
 @@ -3648,6 +3648,11 @@
      save_item(PL_curstname);
  
@@ -4064,8 +4087,8 @@
      CvGV(cv) = gv;
 === sv.c
 ==================================================================
---- sv.c	(/local/perl-current)	(revision 30412)
-+++ sv.c	(/local/perl-c3-subg)	(revision 30412)
+--- sv.c	(/local/perl-current)	(revision 30426)
++++ sv.c	(/local/perl-c3-subg)	(revision 30426)
 @@ -3245,7 +3245,7 @@
  		    SvREFCNT_dec(GvCV(dstr));
  		    GvCV(dstr) = NULL;
@@ -4086,8 +4109,8 @@
  	if (import_flag && !(GvFLAGS(dstr) & import_flag)
 === pp_hot.c
 ==================================================================
---- pp_hot.c	(/local/perl-current)	(revision 30412)
-+++ pp_hot.c	(/local/perl-c3-subg)	(revision 30412)
+--- pp_hot.c	(/local/perl-current)	(revision 30426)
++++ pp_hot.c	(/local/perl-c3-subg)	(revision 30426)
 @@ -192,7 +192,7 @@
  
  	if (strEQ(GvNAME(right),"isa")) {
@@ -4109,8 +4132,8 @@
      }
 === embed.fnc
 ==================================================================
---- embed.fnc	(/local/perl-current)	(revision 30412)
-+++ embed.fnc	(/local/perl-c3-subg)	(revision 30412)
+--- embed.fnc	(/local/perl-current)	(revision 30426)
++++ embed.fnc	(/local/perl-c3-subg)	(revision 30426)
 @@ -282,6 +282,13 @@
  Ap	|GV*	|gv_fetchfile	|NN const char* name
  Ap	|GV*	|gv_fetchfile_flags|NN const char *const name|const STRLEN len\
@@ -4129,7 +4152,7 @@
 Property changes on: 
 ___________________________________________________________________
 Name: svk:merge
- +bc823f99-e23a-42ae-8890-ba2193b93f74:/local/perl-c3:30402
+ +bc823f99-e23a-42ae-8890-ba2193b93f74:/local/perl-c3:30425
  +bc823f99-e23a-42ae-8890-ba2193b93f74:/local/perl-c3-isarev:29720
- +bc823f99-e23a-42ae-8890-ba2193b93f74:/local/perl-current:30396
+ +bc823f99-e23a-42ae-8890-ba2193b93f74:/local/perl-current:30424
 

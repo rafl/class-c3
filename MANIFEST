@@ -1,8 +1,7 @@
 Build.PL
 ChangeLog
 lib/Class/C3.pm
-lib/Class/C3/PurePerl.pm
-lib/Class/C3/PurePerl/next.pm
+lib/Class/C3/next.pm
 Makefile.PL
 MANIFEST			This list of files
 META.yml

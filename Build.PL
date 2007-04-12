@@ -6,13 +6,14 @@ my $build = Module::Build->new(
     module_name => 'Class::C3',
     license => 'perl',
     requires => {
-        'Scalar::Util'    => 1.10,
         'Algorithm::C3'   => 0.06,
+        'Scalar::Util'    => 1.10,
     },
-    optional => {},
+    recommends => {
+        'Class::C3::XS'   => 0.01,
+    },
     build_requires => {
         'Test::More' => '0.47',
-        'Test::Exception' => 0.15,
     },
     create_makefile_pl => 'traditional',
     recursive_test_files => 1,
