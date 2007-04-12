@@ -44,10 +44,12 @@ our $VERSION = '0.15';
 our $C3_IN_CORE;
 
 BEGIN {
-    eval "require mro";
+    eval "require mro"; # XXX in the future, this should be a version check
     if($@) {
         eval "require Algorithm::C3";
-        die "Could not load 'mro' or 'Algorithm::C3'!" if $@;
+        die "No core C3 support and could not load 'Algorithm::C3'!" if $@;
+        eval "require Class::C3::PurePerl::next";
+        die "No core C3 support and could not load 'Class::C3::PurePerl::next'!" if $@;
     }
     else {
         $C3_IN_CORE = 1;
@@ -84,7 +86,7 @@ sub import {
     return if $class eq 'main';
 
     return if $TURN_OFF_C3;
-    mro::set_mro_c3($class) if $C3_IN_CORE;
+    mro::set_mro($class, 'c3') if $C3_IN_CORE;
 
     # make a note to calculate $class 
     # during INIT phase
@@ -98,7 +100,7 @@ sub initialize {
     # why bother if we don't have anything ...
     return unless keys %MRO;
     if($C3_IN_CORE) {
-        mro::set_mro_c3($_) for keys %MRO;
+        mro::set_mro($_, 'c3') for keys %MRO;
     }
     else {
         if($_initialized) {
@@ -116,7 +118,7 @@ sub uninitialize {
     %next::METHOD_CACHE = ();
     return unless keys %MRO;    
     if($C3_IN_CORE) {
-        mro::set_mro_dfs($_) for keys %MRO;
+        mro::set_mro($_, 'dfs') for keys %MRO;
     }
     else {
         _remove_method_dispatch_tables();    
@@ -210,82 +212,12 @@ sub _remove_method_dispatch_table {
 sub calculateMRO {
     my ($class, $merge_cache) = @_;
 
-    return @{mro::get_mro_linear_c3($class)} if $C3_IN_CORE;
+    return @{mro::get_linear_isa($class)} if $C3_IN_CORE;
 
     return Algorithm::C3::merge($class, sub { 
         no strict 'refs'; 
         @{$_[0] . '::ISA'};
     }, $merge_cache);
 }
-
-package  # hide me from PAUSE
-    next; 
-
-use strict;
-use warnings;
-
-use Scalar::Util 'blessed';
-
-our $VERSION = '0.06';
-
-our %METHOD_CACHE;
-
-sub method {
-    my $self     = $_[0];
-    my $class    = blessed($self) || $self;
-    my $indirect = caller() =~ /^(?:next|maybe::next)$/;
-    my $level = $indirect ? 2 : 1;
-     
-    my ($method_caller, $label, @label);
-    while ($method_caller = (caller($level++))[3]) {
-      @label = (split '::', $method_caller);
-      $label = pop @label;
-      last unless
-        $label eq '(eval)' ||
-        $label eq '__ANON__';
-    }
-
-    my $method;
-
-    my $caller   = join '::' => @label;    
-    
-    $method = $METHOD_CACHE{"$class|$caller|$label"} ||= do {
-        
-        my @MRO = Class::C3::calculateMRO($class);
-        
-        my $current;
-        while ($current = shift @MRO) {
-            last if $caller eq $current;
-        }
-        
-        no strict 'refs';
-        my $found;
-        foreach my $class (@MRO) {
-            next if (defined $Class::C3::MRO{$class} && 
-                     defined $Class::C3::MRO{$class}{methods}{$label});          
-            last if (defined ($found = *{$class . '::' . $label}{CODE}));
-        }
-    
-        $found;
-    };
-
-    return $method if $indirect;
-
-    die "No next::method '$label' found for $self" if !$method;
-
-    goto &{$method};
-}
-
-sub can { method($_[0]) }
-
-package  # hide me from PAUSE
-    maybe::next; 
-
-use strict;
-use warnings;
-
-our $VERSION = '0.02';
-
-sub method { (next::method($_[0]) || return)->(@_) }
 
 1;

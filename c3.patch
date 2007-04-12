@@ -1,7 +1,7 @@
 === Makefile.micro
 ==================================================================
---- Makefile.micro	(/local/perl-current)	(revision 29701)
-+++ Makefile.micro	(/local/perl-c3)	(revision 29701)
+--- Makefile.micro	(/local/perl-current)	(revision 30412)
++++ Makefile.micro	(/local/perl-c3-subg)	(revision 30412)
 @@ -10,7 +10,7 @@
  all:	microperl
  
@@ -23,9 +23,9 @@
  
 === embed.h
 ==================================================================
---- embed.h	(/local/perl-current)	(revision 29701)
-+++ embed.h	(/local/perl-c3)	(revision 29701)
-@@ -267,6 +267,10 @@
+--- embed.h	(/local/perl-current)	(revision 30412)
++++ embed.h	(/local/perl-c3-subg)	(revision 30412)
+@@ -267,6 +267,13 @@
  #define gv_efullname4		Perl_gv_efullname4
  #define gv_fetchfile		Perl_gv_fetchfile
  #define gv_fetchfile_flags	Perl_gv_fetchfile_flags
@@ -33,10 +33,13 @@
 +#define mro_linear		Perl_mro_linear
 +#define mro_linear_c3		Perl_mro_linear_c3
 +#define mro_linear_dfs		Perl_mro_linear_dfs
++#define mro_isa_changed_in	Perl_mro_isa_changed_in
++#define mro_method_changed_in	Perl_mro_method_changed_in
++#define boot_core_mro		Perl_boot_core_mro
  #define gv_fetchmeth		Perl_gv_fetchmeth
  #define gv_fetchmeth_autoload	Perl_gv_fetchmeth_autoload
  #define gv_fetchmethod_autoload	Perl_gv_fetchmethod_autoload
-@@ -2504,6 +2508,10 @@
+@@ -2511,6 +2518,13 @@
  #define gv_efullname4(a,b,c,d)	Perl_gv_efullname4(aTHX_ a,b,c,d)
  #define gv_fetchfile(a)		Perl_gv_fetchfile(aTHX_ a)
  #define gv_fetchfile_flags(a,b,c)	Perl_gv_fetchfile_flags(aTHX_ a,b,c)
@@ -44,33 +47,16 @@
 +#define mro_linear(a)		Perl_mro_linear(aTHX_ a)
 +#define mro_linear_c3(a,b)	Perl_mro_linear_c3(aTHX_ a,b)
 +#define mro_linear_dfs(a,b)	Perl_mro_linear_dfs(aTHX_ a,b)
++#define mro_isa_changed_in(a)	Perl_mro_isa_changed_in(aTHX_ a)
++#define mro_method_changed_in(a)	Perl_mro_method_changed_in(aTHX_ a)
++#define boot_core_mro()		Perl_boot_core_mro(aTHX)
  #define gv_fetchmeth(a,b,c,d)	Perl_gv_fetchmeth(aTHX_ a,b,c,d)
  #define gv_fetchmeth_autoload(a,b,c,d)	Perl_gv_fetchmeth_autoload(aTHX_ a,b,c,d)
  #define gv_fetchmethod_autoload(a,b,c)	Perl_gv_fetchmethod_autoload(aTHX_ a,b,c)
-=== embedvar.h
-==================================================================
---- embedvar.h	(/local/perl-current)	(revision 29701)
-+++ embedvar.h	(/local/perl-c3)	(revision 29701)
-@@ -227,6 +227,7 @@
- #define PL_incgv		(vTHX->Iincgv)
- #define PL_initav		(vTHX->Iinitav)
- #define PL_inplace		(vTHX->Iinplace)
-+#define PL_isa_generation	(vTHX->Iisa_generation)
- #define PL_known_layers		(vTHX->Iknown_layers)
- #define PL_last_lop		(vTHX->Ilast_lop)
- #define PL_last_lop_op		(vTHX->Ilast_lop_op)
-@@ -495,6 +496,7 @@
- #define PL_Iincgv		PL_incgv
- #define PL_Iinitav		PL_initav
- #define PL_Iinplace		PL_inplace
-+#define PL_Iisa_generation	PL_isa_generation
- #define PL_Iknown_layers	PL_known_layers
- #define PL_Ilast_lop		PL_last_lop
- #define PL_Ilast_lop_op		PL_last_lop_op
 === pod/perlapi.pod
 ==================================================================
---- pod/perlapi.pod	(/local/perl-current)	(revision 29701)
-+++ pod/perlapi.pod	(/local/perl-c3)	(revision 29701)
+--- pod/perlapi.pod	(/local/perl-current)	(revision 30412)
++++ pod/perlapi.pod	(/local/perl-c3-subg)	(revision 30412)
 @@ -1326,7 +1326,7 @@
  The argument C<level> should be either 0 or -1.  If C<level==0>, as a
  side-effect creates a glob with the given C<name> in the given C<stash>
@@ -80,11 +66,27 @@
  
  This function grants C<"SUPER"> token as a postfix of the stash name. The
  GV returned from C<gv_fetchmeth> may be a method cache entry, which is not
+=== pp_ctl.c
+==================================================================
+--- pp_ctl.c	(/local/perl-current)	(revision 30412)
++++ pp_ctl.c	(/local/perl-c3-subg)	(revision 30412)
+@@ -3511,6 +3511,11 @@
+ 	&& ret != PL_op->op_next) {	/* Successive compilation. */
+ 	/* Copy in anything fake and short. */
+ 	my_strlcpy(safestr, fakestr, fakelen);
++        /* XXX blblack - I don't understand what's going on here,
++           but its not going to work like it used to, as PL_sub_generation
++           is no longer incremented for all sub definitions.  In any case
++           this is a debugger-only thing
++        */
+     }
+     return DOCATCH(ret);
+ }
 === global.sym
 ==================================================================
---- global.sym	(/local/perl-current)	(revision 29701)
-+++ global.sym	(/local/perl-c3)	(revision 29701)
-@@ -135,6 +135,10 @@
+--- global.sym	(/local/perl-current)	(revision 30412)
++++ global.sym	(/local/perl-c3-subg)	(revision 30412)
+@@ -135,6 +135,13 @@
  Perl_gv_efullname4
  Perl_gv_fetchfile
  Perl_gv_fetchfile_flags
@@ -92,13 +94,28 @@
 +Perl_mro_linear
 +Perl_mro_linear_c3
 +Perl_mro_linear_dfs
++Perl_mro_isa_changed_in
++Perl_mro_method_changed_in
++Perl_boot_core_mro
  Perl_gv_fetchmeth
  Perl_gv_fetchmeth_autoload
  Perl_gv_fetchmethod
+=== perl.c
+==================================================================
+--- perl.c	(/local/perl-current)	(revision 30412)
++++ perl.c	(/local/perl-c3-subg)	(revision 30412)
+@@ -2163,6 +2163,7 @@
+     boot_core_PerlIO();
+     boot_core_UNIVERSAL();
+     boot_core_xsutils();
++    boot_core_mro();
+ 
+     if (xsinit)
+ 	(*xsinit)(aTHX);	/* in case linked C routines want magical variables */
 === universal.c
 ==================================================================
---- universal.c	(/local/perl-current)	(revision 29701)
-+++ universal.c	(/local/perl-c3)	(revision 29701)
+--- universal.c	(/local/perl-current)	(revision 30412)
++++ universal.c	(/local/perl-c3-subg)	(revision 30412)
 @@ -36,12 +36,12 @@
               int len, int level)
  {
@@ -207,11 +224,42 @@
      return FALSE;
  }
  
+=== scope.c
+==================================================================
+--- scope.c	(/local/perl-current)	(revision 30412)
++++ scope.c	(/local/perl-c3-subg)	(revision 30412)
+@@ -256,7 +256,7 @@
+ 	GP *gp = Perl_newGP(aTHX_ gv);
+ 
+ 	if (GvCVu(gv))
+-	    PL_sub_generation++;	/* taking a method out of circulation */
++            mro_method_changed_in(GvSTASH(gv)); /* taking a method out of circulation ("local")*/
+ 	if (GvIOp(gv) && (IoFLAGS(GvIOp(gv)) & IOf_ARGV)) {
+ 	    gp->gp_io = newIO();
+ 	    IoFLAGS(gp->gp_io) |= IOf_ARGV|IOf_START;
+@@ -740,7 +740,7 @@
+ 	    gp_free(gv);
+ 	    GvGP(gv) = (GP*)ptr;
+ 	    if (GvCVu(gv))
+-		PL_sub_generation++;  /* putting a method back into circulation */
++                mro_method_changed_in(GvSTASH(gv)); /* putting a method back into circulation ("local")*/
+ 	    SvREFCNT_dec(gv);
+ 	    break;
+ 	case SAVEt_FREESV:
 === gv.c
 ==================================================================
---- gv.c	(/local/perl-current)	(revision 29701)
-+++ gv.c	(/local/perl-c3)	(revision 29701)
-@@ -306,7 +306,7 @@
+--- gv.c	(/local/perl-current)	(revision 30412)
++++ gv.c	(/local/perl-c3-subg)	(revision 30412)
+@@ -260,7 +260,7 @@
+ 	}
+ 	LEAVE;
+ 
+-	PL_sub_generation++;
++        mro_method_changed_in(GvSTASH(gv)); /* sub Foo::bar($) { (shift) } sub ASDF::baz($); *ASDF::baz = \&Foo::bar */
+ 	CvGV(GvCV(gv)) = gv;
+ 	CvFILE_set_from_cop(GvCV(gv), PL_curcop);
+ 	CvSTASH(GvCV(gv)) = PL_curstash;
+@@ -310,7 +310,7 @@
  The argument C<level> should be either 0 or -1.  If C<level==0>, as a
  side-effect creates a glob with the given C<name> in the given C<stash>
  which in the case of success contains an alias for the subroutine, and sets
@@ -220,7 +268,7 @@
  
  This function grants C<"SUPER"> token as a postfix of the stash name. The
  GV returned from C<gv_fetchmeth> may be a method cache entry, which is not
-@@ -317,133 +317,137 @@
+@@ -321,133 +321,150 @@
  =cut
  */
  
@@ -248,6 +296,7 @@
 +    I32 create = (level >= 0) ? 1 : 0;
 +    I32 items;
 +    STRLEN packlen;
++    U32 topgen_cmp;
  
      /* UNIVERSAL methods should be callable without a stash */
      if (!stash) {
@@ -277,6 +326,8 @@
 -    gvp = (GV**)hv_fetch(stash, name, len, (level >= 0));
 -    if (!gvp)
 -	topgv = NULL;
++    topgen_cmp = HvMROMETA(stash)->sub_generation + PL_sub_generation;
++
 +    /* check locally for a real method or a cache entry */
 +    gvp = (GV**)hv_fetch(stash, name, len, create);
 +    if(gvp) {
@@ -286,7 +337,7 @@
 +            gv_init(topgv, stash, name, len, TRUE);
 +        if ((cand_cv = GvCV(topgv))) {
 +            /* If genuine method or valid cache entry, use it */
-+            if (!GvCVGEN(topgv) || GvCVGEN(topgv) == PL_sub_generation) {
++            if (!GvCVGEN(topgv) || GvCVGEN(topgv) == topgen_cmp) {
 +                return topgv;
 +            }
 +            else {
@@ -296,7 +347,7 @@
 +	        GvCVGEN(topgv) = 0;
 +            }
 +        }
-+        else if (GvCVGEN(topgv) == PL_sub_generation) {
++        else if (GvCVGEN(topgv) == topgen_cmp) {
 +            /* cache indicates no such method definitively */
 +            return 0;
 +        }
@@ -340,7 +391,17 @@
 -    /* create and re-create @.*::SUPER::ISA on demand */
 -    if (!av || !SvMAGIC(av)) {
 -	STRLEN packlen = HvNAMELEN_get(stash);
-+        if (!curstash) {
++        /* mg.c:Perl_magic_setisa sets the fake flag on packages it had
++           to create that the user did not.  The "package" statement
++           clears it.  We also check if there's anything in the symbol
++           table at all, which would indicate a previously "fake" package
++           where someone adding things via $Foo::Bar = 1 without ever
++           using a "package" statement.
++           This was all neccesary because magic_setisa needs a place to
++           keep isarev information on packages that aren't yet defined,
++           yet we still need to issue this warning when appropriate.
++        */
++        if (!curstash || (HvMROMETA(curstash)->fake && !HvFILL(curstash))) {
 +            if (ckWARN(WARN_MISC))
 +                Perl_warner(aTHX_ packWARN(WARN_MISC), "Can't locate package %"SVf" for @%s::ISA",
 +                    SVfARG(linear_sv), hvname);
@@ -379,7 +440,7 @@
 +                  if ((old_cv = GvCV(topgv))) SvREFCNT_dec(old_cv);
 +                  SvREFCNT_inc_simple_void_NN(cand_cv);
 +                  GvCV(topgv) = cand_cv;
-+                  GvCVGEN(topgv) = PL_sub_generation;
++                  GvCVGEN(topgv) = topgen_cmp;
 +            }
 +	    return candidate;
 +        }
@@ -412,7 +473,7 @@
 +                  if ((old_cv = GvCV(topgv))) SvREFCNT_dec(old_cv);
 +                  SvREFCNT_inc_simple_void_NN(cand_cv);
 +                  GvCV(topgv) = cand_cv;
-+                  GvCVGEN(topgv) = PL_sub_generation;
++                  GvCVGEN(topgv) = topgen_cmp;
 +            }
 +            return candidate;
 +        }
@@ -452,28 +513,301 @@
 -	}
 +    if (topgv && GvREFCNT(topgv) == 1) {
 +        /* cache the fact that the method is not defined */
-+        GvCVGEN(topgv) = PL_sub_generation;
++        GvCVGEN(topgv) = topgen_cmp;
      }
  
      return 0;
-=== perlapi.h
+@@ -1443,7 +1460,8 @@
+ 	}
+ 	else {
+ 	    /* Adding a new name to a subroutine invalidates method cache */
+-	    PL_sub_generation++;
++	    PL_sub_generation++; /* XXX *Foo::bar = *Baz::Quux, but we have no reference to the destination here ... */
++            /* need to track down gp_ref users, fix it there, and kill this (also wtf is going on above with the refdec? */
+ 	}
+     }
+     return gp;
+@@ -1466,7 +1484,7 @@
+     }
+     if (gp->gp_cv) {
+ 	/* Deleting the name of a subroutine invalidates method cache */
+-	PL_sub_generation++;
++	PL_sub_generation++; /* XXX as above???, or not??? */
+     }
+     if (--gp->gp_refcnt > 0) {
+ 	if (gp->gp_egv == gv)
+@@ -1523,11 +1541,13 @@
+   dVAR;
+   MAGIC* const mg = mg_find((SV*)stash, PERL_MAGIC_overload_table);
+   AMT amt;
++  U32 newgen;
+ 
++  newgen = PL_sub_generation + HvMROMETA(stash)->sub_generation;
+   if (mg) {
+       const AMT * const amtp = (AMT*)mg->mg_ptr;
+       if (amtp->was_ok_am == PL_amagic_generation
+-	  && amtp->was_ok_sub == PL_sub_generation) {
++	  && amtp->was_ok_sub == newgen) {
+ 	  return (bool)AMT_OVERLOADED(amtp);
+       }
+       sv_unmagic((SV*)stash, PERL_MAGIC_overload_table);
+@@ -1537,7 +1557,7 @@
+ 
+   Zero(&amt,1,AMT);
+   amt.was_ok_am = PL_amagic_generation;
+-  amt.was_ok_sub = PL_sub_generation;
++  amt.was_ok_sub = newgen;
+   amt.fallback = AMGfallNO;
+   amt.flags = 0;
+ 
+@@ -1649,9 +1669,13 @@
+     dVAR;
+     MAGIC *mg;
+     AMT *amtp;
++    U32 newgen;
+ 
+     if (!stash || !HvNAME_get(stash))
+         return NULL;
++
++    newgen = PL_sub_generation + HvMROMETA(stash)->sub_generation;
++
+     mg = mg_find((SV*)stash, PERL_MAGIC_overload_table);
+     if (!mg) {
+       do_update:
+@@ -1661,7 +1685,7 @@
+     assert(mg);
+     amtp = (AMT*)mg->mg_ptr;
+     if ( amtp->was_ok_am != PL_amagic_generation
+-	 || amtp->was_ok_sub != PL_sub_generation )
++	 || amtp->was_ok_sub != newgen )
+ 	goto do_update;
+     if (AMT_AMAGIC(amtp)) {
+ 	CV * const ret = amtp->table[id];
+=== lib/constant.pm
 ==================================================================
---- perlapi.h	(/local/perl-current)	(revision 29701)
-+++ perlapi.h	(/local/perl-c3)	(revision 29701)
-@@ -332,6 +332,8 @@
- #define PL_initav		(*Perl_Iinitav_ptr(aTHX))
- #undef  PL_inplace
- #define PL_inplace		(*Perl_Iinplace_ptr(aTHX))
-+#undef  PL_isa_generation
-+#define PL_isa_generation	(*Perl_Iisa_generation_ptr(aTHX))
- #undef  PL_known_layers
- #define PL_known_layers		(*Perl_Iknown_layers_ptr(aTHX))
- #undef  PL_last_lop
+--- lib/constant.pm	(/local/perl-current)	(revision 30412)
++++ lib/constant.pm	(/local/perl-c3-subg)	(revision 30412)
+@@ -5,7 +5,7 @@
+ use warnings::register;
+ 
+ our($VERSION, %declared);
+-$VERSION = '1.09';
++$VERSION = '1.10';
+ 
+ #=======================================================================
+ 
+@@ -109,7 +109,7 @@
+ 		    # constants from cv_const_sv are read only. So we have to:
+ 		    Internals::SvREADONLY($scalar, 1);
+ 		    $symtab->{$name} = \$scalar;
+-		    &Internals::inc_sub_generation;
++		    mro::invalidate_all_method_caches();
+ 		} else {
+ 		    *$full_name = sub () { $scalar };
+ 		}
+=== lib/overload.pm
+==================================================================
+--- lib/overload.pm	(/local/perl-current)	(revision 30412)
++++ lib/overload.pm	(/local/perl-c3-subg)	(revision 30412)
+@@ -1,6 +1,6 @@
+ package overload;
+ 
+-our $VERSION = '1.04';
++our $VERSION = '1.05';
+ 
+ sub nil {}
+ 
+@@ -95,12 +95,13 @@
+ 
+ sub mycan {				# Real can would leave stubs.
+   my ($package, $meth) = @_;
+-  return \*{$package . "::$meth"} if defined &{$package . "::$meth"};
+-  my $p;
+-  foreach $p (@{$package . "::ISA"}) {
+-    my $out = mycan($p, $meth);
+-    return $out if $out;
++
++  my $mro = mro::get_linear_isa($package);
++  foreach my $p (@$mro) {
++    my $fqmeth = $p . q{::} . $meth;
++    return \*{$fqmeth} if defined &{$fqmeth};
+   }
++
+   return undef;
+ }
+ 
+=== lib/mro.pm
+==================================================================
+--- lib/mro.pm	(/local/perl-current)	(revision 30412)
++++ lib/mro.pm	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,162 @@
++#      mro.pm
++#
++#      Copyright (c) 2007 Brandon L Black
++#
++#      You may distribute under the terms of either the GNU General Public
++#      License or the Artistic License, as specified in the README file.
++#
++package mro;
++use strict;
++use warnings;
++
++our $VERSION = '0.01';
++
++sub import {
++    mro::set_mro(scalar(caller), $_[1]) if $_[1];
++}
++
++1;
++
++__END__
++
++=head1 NAME
++
++mro - Method Resolution Order
++
++=head1 SYNOPSIS
++
++  use mro 'dfs'; # enable DFS mro for this class (Perl default)
++  use mro 'c3'; # enable C3 mro for this class
++
++=head1 DESCRIPTION
++
++TODO
++
++=head1 OVERVIEW
++
++TODO
++
++=head1 Functions
++
++NOTE: These are built into the perl core, there is no need
++to do C<use mro> to access these functions.
++
++=head2 mro::get_linear_isa
++
++Arguments: classname[, type]
++
++Return an arrayref which is the linearized MRO of the given class.
++Uses whichever MRO is currently in effect for that class by default,
++or the given mro (either C<c3> or C<dfs> if specified as C<type>.
++
++=head2 mro::set_mro
++
++Arguments: classname, type
++
++Sets the MRO of the given class to the C<type> argument (either
++C<c3> or C<dfs>).
++
++=head2 mro::get_mro
++
++Arguments: classname
++
++Returns the MRO of the given class (either C<c3> or C<dfs>)
++
++=head2 mro::get_global_sub_generation
++
++Arguments: none
++
++Returns the current value of C<PL_sub_generation>.
++
++=head2 mro::invalidate_all_method_caches
++
++Arguments: none
++
++Increments C<PL_sub_generation>, which invalidates method
++caching in all packages.
++
++=head2 mro::get_sub_generation
++
++Arguments: classname
++
++Returns the current value of a given package's C<sub_generation>.
++This is only incremented when necessary for that package.
++
++If one is trying to determine whether significant (method/cache-
++affecting) changes have occured for a given stash since you last
++checked, you should check both this and the global one above.
++
++=head2 mro::invalidate_method_cache
++
++Arguments: classname
++
++Invalidates the method cache of the given stash and any dependant
++classes.
++
++=head2 next::method
++
++Similar in concept to C<SUPER>, but substantially different in
++practice on C3-enabled classes.  One generally uses it like so:
++
++  sub some_method {
++    my $self = shift;
++
++    my $superclass_answer = $self->next::method(@_);
++    return $superclass_answer + 1;
++  }
++
++One major difference in invocation is that you don't
++(re-)specify the method name.  It forces you to always
++use the same method name as the method you started in.
++
++It can be called on an object or a class, of course.
++
++The way it resolves which actual method to call is:
++
++1) First, it determines the linearized MRO of the
++object or class it is being called on.
++
++2) Then, it determines the class and method name
++of the context it was invoked from.
++
++3) Finally, it searches down the MRO list until
++it reaches the contextually enclosing class, then
++searches further down the MRO list for the next
++method with the same name as the contextually
++enclosing method.
++
++Failure to find a next method will result in an
++exception being thrown (see below for alternatives).
++
++With the Perl-default DFS MRO, this doesn't
++result in any substantial difference from the
++method resolution behavior of C<SUPER>, but it
++changes everything under C3 (this becomes obvious
++when one realizes that the common classes in the
++C3 linearizations of a given class and one of its
++parents will not always be ordered the same for
++both).  C<next::method>'s resolution behavior
++gives the most consistent results (an object's
++methods always resolve in that object's MRO
++order).
++
++=head2 next::can
++
++Like C<next::method>, but just returns either
++a code reference or C<undef> to indicate that
++no further methods of this name exist.
++
++=head2 maybe::next::method
++
++In simple cases it is equivalent to:
++
++   $self->next::method(@_) if $self->next_can;
++
++But there are some cases where only this solution
++works (like "goto &maybe::next::method");
++
++=head1 AUTHOR
++
++Brandon L Black, C<blblack@gmail.com>
++
++=cut
 === win32/Makefile
 ==================================================================
---- win32/Makefile	(/local/perl-current)	(revision 29701)
-+++ win32/Makefile	(/local/perl-c3)	(revision 29701)
-@@ -644,6 +644,7 @@
+--- win32/Makefile	(/local/perl-current)	(revision 30412)
++++ win32/Makefile	(/local/perl-c3-subg)	(revision 30412)
+@@ -647,6 +647,7 @@
  		..\dump.c	\
  		..\globals.c	\
  		..\gv.c		\
@@ -483,9 +817,9 @@
  		..\mathoms.c    \
 === win32/makefile.mk
 ==================================================================
---- win32/makefile.mk	(/local/perl-current)	(revision 29701)
-+++ win32/makefile.mk	(/local/perl-c3)	(revision 29701)
-@@ -813,6 +813,7 @@
+--- win32/makefile.mk	(/local/perl-current)	(revision 30412)
++++ win32/makefile.mk	(/local/perl-c3-subg)	(revision 30412)
+@@ -816,6 +816,7 @@
  		..\dump.c	\
  		..\globals.c	\
  		..\gv.c		\
@@ -495,8 +829,8 @@
  		..\mathoms.c    \
 === win32/Makefile.ce
 ==================================================================
---- win32/Makefile.ce	(/local/perl-current)	(revision 29701)
-+++ win32/Makefile.ce	(/local/perl-c3)	(revision 29701)
+--- win32/Makefile.ce	(/local/perl-current)	(revision 30412)
++++ win32/Makefile.ce	(/local/perl-c3-subg)	(revision 30412)
 @@ -571,6 +571,7 @@
  		..\dump.c	\
  		..\globals.c	\
@@ -513,157 +847,26 @@
  $(DLLDIR)\hv.obj \
  $(DLLDIR)\locale.obj \
  $(DLLDIR)\mathoms.obj \
-=== NetWare/Makefile
+=== t/TEST
 ==================================================================
---- NetWare/Makefile	(/local/perl-current)	(revision 29701)
-+++ NetWare/Makefile	(/local/perl-c3)	(revision 29701)
-@@ -701,6 +701,7 @@
- 		..\dump.c	\
- 		..\globals.c	\
- 		..\gv.c		\
-+		..\mro.c	\
- 		..\hv.c		\
- 		..\locale.c	\
-                 ..\mathoms.c    \
-=== vms/descrip_mms.template
+--- t/TEST	(/local/perl-current)	(revision 30412)
++++ t/TEST	(/local/perl-c3-subg)	(revision 30412)
+@@ -104,7 +104,7 @@
+ }
+ 
+ unless (@ARGV) {
+-    foreach my $dir (qw(base comp cmd run io op uni)) {
++    foreach my $dir (qw(base comp cmd run io op uni mro)) {
+ 	_find_tests($dir);
+     }
+     _find_tests("lib") unless $::core;
+=== t/mro	(new directory)
 ==================================================================
---- vms/descrip_mms.template	(/local/perl-current)	(revision 29701)
-+++ vms/descrip_mms.template	(/local/perl-c3)	(revision 29701)
-@@ -279,13 +279,13 @@
- 
- #### End of system configuration section. ####
- 
--c0 = $(MALLOC_C) $(SOCKC) av.c deb.c doio.c doop.c dump.c globals.c gv.c hv.c
-+c0 = $(MALLOC_C) $(SOCKC) av.c deb.c doio.c doop.c dump.c globals.c gv.c hv.c mro.c
- c1 = mg.c locale.c mathoms.c miniperlmain.c numeric.c op.c pad.c perl.c perlapi.c perlio.c
- c2 = perly.c pp.c pp_ctl.c pp_hot.c pp_pack.c pp_sort.c pp_sys.c regcomp.c regexec.c reentr.c
- c3 = run.c scope.c sv.c taint.c toke.c universal.c utf8.c util.c vms.c xsutils.c
- c = $(c0) $(c1) $(c2) $(c3)
- 
--obj0 = $(MALLOC_O) $(SOCKO) av$(O) deb$(O) doio$(O) doop$(O) dump$(O)
-+obj0 = $(MALLOC_O) $(SOCKO) av$(O) deb$(O) doio$(O) doop$(O) dump$(O) mro$(O)
- obj1 = globals$(O) gv$(O) hv$(O) locale$(O) mathoms$(O) mg$(O) miniperlmain$(O) numeric$(O) op$(O) pad$(O)
- obj2 = perl$(O) perlapi$(O) perlio$(O) perly$(O) pp$(O) pp_ctl$(O) pp_hot$(O) reentr$(O)
- obj3 = pp_pack$(O) pp_sort$(O) pp_sys$(O) regcomp$(O) regexec$(O) run$(O) scope$(O) sv$(O) taint$(O) toke$(O)
-@@ -1606,6 +1606,8 @@
- 	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
- gv$(O) : gv.c $(h)
- 	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
-+mro$(O) : mro.c $(h)
-+	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
- hv$(O) : hv.c $(h)
- 	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
- locale$(O) : locale.c $(h)
-=== Makefile.SH
+=== t/mro/basic_01_dfs.t
 ==================================================================
---- Makefile.SH	(/local/perl-current)	(revision 29701)
-+++ Makefile.SH	(/local/perl-c3)	(revision 29701)
-@@ -367,7 +367,7 @@
- h5 = utf8.h warnings.h
- h = $(h1) $(h2) $(h3) $(h4) $(h5)
- 
--c1 = av.c scope.c op.c doop.c doio.c dump.c gv.c hv.c mg.c reentr.c  perl.c
-+c1 = av.c scope.c op.c doop.c doio.c dump.c gv.c hv.c mg.c reentr.c mro.c perl.c
- c2 = perly.c pp.c pp_hot.c pp_ctl.c pp_sys.c regcomp.c regexec.c utf8.c sv.c
- c3 = taint.c toke.c util.c deb.c run.c universal.c xsutils.c pad.c globals.c
- c4 = perlio.c perlapi.c numeric.c mathoms.c locale.c pp_pack.c pp_sort.c
-@@ -375,7 +375,7 @@
- 
- c = $(c1) $(c2) $(c3) $(c4) $(c5) miniperlmain.c perlmain.c opmini.c
- 
--obj1 = $(madlyobj) $(mallocobj) gv$(OBJ_EXT) toke$(OBJ_EXT) perly$(OBJ_EXT) op$(OBJ_EXT) pad$(OBJ_EXT) regcomp$(OBJ_EXT) dump$(OBJ_EXT) util$(OBJ_EXT) mg$(OBJ_EXT) reentr$(OBJ_EXT)
-+obj1 = $(madlyobj) $(mallocobj) gv$(OBJ_EXT) toke$(OBJ_EXT) perly$(OBJ_EXT) op$(OBJ_EXT) pad$(OBJ_EXT) regcomp$(OBJ_EXT) dump$(OBJ_EXT) util$(OBJ_EXT) mg$(OBJ_EXT) reentr$(OBJ_EXT) mro$(OBJ_EXT)
- obj2 = hv$(OBJ_EXT) av$(OBJ_EXT) perl$(OBJ_EXT) run$(OBJ_EXT) pp_hot$(OBJ_EXT) sv$(OBJ_EXT) pp$(OBJ_EXT) scope$(OBJ_EXT) pp_ctl$(OBJ_EXT) pp_sys$(OBJ_EXT)
- obj3 = doop$(OBJ_EXT) doio$(OBJ_EXT) regexec$(OBJ_EXT) utf8$(OBJ_EXT) taint$(OBJ_EXT) deb$(OBJ_EXT) universal$(OBJ_EXT) xsutils$(OBJ_EXT) globals$(OBJ_EXT) perlio$(OBJ_EXT) perlapi$(OBJ_EXT) numeric$(OBJ_EXT) mathoms$(OBJ_EXT) locale$(OBJ_EXT) pp_pack$(OBJ_EXT) pp_sort$(OBJ_EXT)
- 
-=== proto.h
-==================================================================
---- proto.h	(/local/perl-current)	(revision 29701)
-+++ proto.h	(/local/perl-c3)	(revision 29701)
-@@ -635,6 +635,18 @@
- PERL_CALLCONV GV*	Perl_gv_fetchfile_flags(pTHX_ const char *const name, const STRLEN len, const U32 flags)
- 			__attribute__nonnull__(pTHX_1);
- 
-+PERL_CALLCONV struct mro_meta*	Perl_mro_meta_init(pTHX_ HV* stash)
-+			__attribute__nonnull__(pTHX_1);
-+
-+PERL_CALLCONV AV*	Perl_mro_linear(pTHX_ HV* stash)
-+			__attribute__nonnull__(pTHX_1);
-+
-+PERL_CALLCONV AV*	Perl_mro_linear_c3(pTHX_ HV* stash, I32 level)
-+			__attribute__nonnull__(pTHX_1);
-+
-+PERL_CALLCONV AV*	Perl_mro_linear_dfs(pTHX_ HV* stash, I32 level)
-+			__attribute__nonnull__(pTHX_1);
-+
- PERL_CALLCONV GV*	Perl_gv_fetchmeth(pTHX_ HV* stash, const char* name, STRLEN len, I32 level)
- 			__attribute__nonnull__(pTHX_2);
- 
-=== ext/B/t/concise-xs.t
-==================================================================
---- ext/B/t/concise-xs.t	(/local/perl-current)	(revision 29701)
-+++ ext/B/t/concise-xs.t	(/local/perl-c3)	(revision 29701)
-@@ -117,7 +117,7 @@
- use Carp;
- use Test::More tests => ( # per-pkg tests (function ct + require_ok)
- 			  40 + 16	# Data::Dumper, Digest::MD5
--			  + 517 + 239	# B::Deparse, B
-+			  + 517 + 240	# B::Deparse, B
- 			  + 595 + 190	# POSIX, IO::Socket
- 			  + 323 * ($] > 5.009)
- 			  + 17 * ($] >= 5.009003)
-@@ -157,7 +157,7 @@
- 		  formfeed end_av dowarn diehook defstash curstash
- 		  cstring comppadlist check_av cchar cast_I32 bootstrap
- 		  begin_av amagic_generation sub_generation address
--		  ), $] > 5.009 ? ('unitcheck_av') : ()],
-+		  ), $] > 5.009 ? ('unitcheck_av', 'isa_generation') : ()],
-     },
- 
-     B::Deparse => { dflt => 'perl',	# 235 functions
-=== ext/B/B.xs
-==================================================================
---- ext/B/B.xs	(/local/perl-current)	(revision 29701)
-+++ ext/B/B.xs	(/local/perl-c3)	(revision 29701)
-@@ -609,6 +609,7 @@
- #define B_main_start()	PL_main_start
- #define B_amagic_generation()	PL_amagic_generation
- #define B_sub_generation()	PL_sub_generation
-+#define B_isa_generation()	PL_isa_generation
- #define B_defstash()	PL_defstash
- #define B_curstash()	PL_curstash
- #define B_dowarn()	PL_dowarn
-@@ -665,6 +666,9 @@
- long
- B_sub_generation()
- 
-+long
-+B_isa_generation()
-+
- B::AV
- B_comppadlist()
- 
-=== ext/B/B.pm
-==================================================================
---- ext/B/B.pm	(/local/perl-current)	(revision 29701)
-+++ ext/B/B.pm	(/local/perl-c3)	(revision 29701)
-@@ -23,6 +23,7 @@
- 		parents comppadlist sv_undef compile_stats timing_info
- 		begin_av init_av check_av end_av regex_padav dowarn defstash
- 		curstash warnhook diehook inc_gv
-+		isa_generation
- 		);
- push @EXPORT_OK, qw(unitcheck_av) if $] > 5.009;
- 
-=== ext/mro	(new directory)
-==================================================================
-=== ext/mro/t	(new directory)
-==================================================================
-=== ext/mro/t/basic_01_dfs.t
-==================================================================
---- ext/mro/t/basic_01_dfs.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/basic_01_dfs.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,54 @@
+--- t/mro/basic_01_dfs.t	(/local/perl-current)	(revision 30412)
++++ t/mro/basic_01_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,53 @@
 +#!./perl
 +
 +use strict;
@@ -676,7 +879,6 @@
 +}
 +
 +use Test::More tests => 4;
-+use mro;
 +
 +=pod
 +
@@ -711,17 +913,17 @@
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('Diamond_D'),
++    mro::get_linear_isa('Diamond_D'),
 +    [ qw(Diamond_D Diamond_B Diamond_A Diamond_C) ],
 +    '... got the right MRO for Diamond_D');
 +
 +is(Diamond_D->hello, 'Diamond_A::hello', '... method resolved itself as expected');
 +is(Diamond_D->can('hello')->(), 'Diamond_A::hello', '... can(method) resolved itself as expected');
 +is(UNIVERSAL::can("Diamond_D", 'hello')->(), 'Diamond_A::hello', '... can(method) resolved itself as expected');
-=== ext/mro/t/vulcan_c3.t
+=== t/mro/vulcan_c3.t
 ==================================================================
---- ext/mro/t/vulcan_c3.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/vulcan_c3.t	(/local/perl-c3)	(revision 29701)
+--- t/mro/vulcan_c3.t	(/local/perl-current)	(revision 30412)
++++ t/mro/vulcan_c3.t	(/local/perl-c3-subg)	(revision 30412)
 @@ -0,0 +1,73 @@
 +#!./perl
 +
@@ -793,14 +995,14 @@
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('Vulcan'),
++    mro::get_linear_isa('Vulcan'),
 +    [ qw(Vulcan Intelligent Sentient Humanoid BiPedal LifeForm Object) ],
 +    '... got the right MRO for the Vulcan Dylan Example');  
-=== ext/mro/t/basic_02_dfs.t
+=== t/mro/basic_02_dfs.t
 ==================================================================
---- ext/mro/t/basic_02_dfs.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/basic_02_dfs.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,122 @@
+--- t/mro/basic_02_dfs.t	(/local/perl-current)	(revision 30412)
++++ t/mro/basic_02_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,121 @@
 +#!./perl
 +
 +use strict;
@@ -813,7 +1015,6 @@
 +}
 +
 +use Test::More tests => 10;
-+use mro;
 +
 +=pod
 +
@@ -890,32 +1091,32 @@
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::F'),
++    mro::get_linear_isa('Test::F'),
 +    [ qw(Test::F Test::O) ],
 +    '... got the right MRO for Test::F');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::E'),
++    mro::get_linear_isa('Test::E'),
 +    [ qw(Test::E Test::O) ],
 +    '... got the right MRO for Test::E');    
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::D'),
++    mro::get_linear_isa('Test::D'),
 +    [ qw(Test::D Test::O) ],
 +    '... got the right MRO for Test::D');       
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::C'),
++    mro::get_linear_isa('Test::C'),
 +    [ qw(Test::C Test::D Test::O Test::F) ],
 +    '... got the right MRO for Test::C'); 
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::B'),
++    mro::get_linear_isa('Test::B'),
 +    [ qw(Test::B Test::D Test::O Test::E) ],
 +    '... got the right MRO for Test::B');     
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::A'),
++    mro::get_linear_isa('Test::A'),
 +    [ qw(Test::A Test::B Test::D Test::O Test::E Test::C Test::F) ],
 +    '... got the right MRO for Test::A');  
 +    
@@ -923,11 +1124,11 @@
 +is(Test::A->can('C_or_D')->(), 'Test::D', '... can got the expected method output');
 +is(Test::A->C_or_E, 'Test::E', '... got the expected method output');
 +is(Test::A->can('C_or_E')->(), 'Test::E', '... can got the expected method output');
-=== ext/mro/t/basic_03_dfs.t
+=== t/mro/basic_03_dfs.t
 ==================================================================
---- ext/mro/t/basic_03_dfs.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/basic_03_dfs.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,108 @@
+--- t/mro/basic_03_dfs.t	(/local/perl-current)	(revision 30412)
++++ t/mro/basic_03_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,107 @@
 +#!./perl
 +
 +use strict;
@@ -940,7 +1141,6 @@
 +}
 +
 +use Test::More tests => 4;
-+use mro;
 +
 +=pod
 +
@@ -1024,7 +1224,7 @@
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::A'),
++    mro::get_linear_isa('Test::A'),
 +    [ qw(Test::A Test::B Test::E Test::O Test::D Test::C Test::F) ],
 +    '... got the right MRO for Test::A');      
 +    
@@ -1036,11 +1236,11 @@
 +# would actually call Test::D before Test::C and Test::D is a
 +# subclass of Test::C 
 +is(Test::A->C_or_D, 'Test::D', '... got the right method dispatch');    
-=== ext/mro/t/basic_04_dfs.t
+=== t/mro/basic_04_dfs.t
 ==================================================================
---- ext/mro/t/basic_04_dfs.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/basic_04_dfs.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,41 @@
+--- t/mro/basic_04_dfs.t	(/local/perl-current)	(revision 30412)
++++ t/mro/basic_04_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,40 @@
 +#!./perl
 +
 +use strict;
@@ -1053,7 +1253,6 @@
 +}
 +
 +use Test::More tests => 1;
-+use mro;
 +
 +=pod 
 +
@@ -1078,15 +1277,15 @@
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('t::lib::F'),
++    mro::get_linear_isa('t::lib::F'),
 +    [ qw(t::lib::F t::lib::C t::lib::A t::lib::B t::lib::D t::lib::E) ],
 +    '... got the right MRO for t::lib::F');  
 +
-=== ext/mro/t/basic_05_dfs.t
+=== t/mro/basic_05_dfs.t
 ==================================================================
---- ext/mro/t/basic_05_dfs.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/basic_05_dfs.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,62 @@
+--- t/mro/basic_05_dfs.t	(/local/perl-current)	(revision 30412)
++++ t/mro/basic_05_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,61 @@
 +#!./perl
 +
 +use strict;
@@ -1099,7 +1298,6 @@
 +}
 +
 +use Test::More tests => 2;
-+use mro;
 +
 +=pod
 +
@@ -1142,17 +1340,17 @@
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('Diamond_D'),
++    mro::get_linear_isa('Diamond_D'),
 +    [ qw(Diamond_D Diamond_C Diamond_A Diamond_B) ],
 +    '... got the right MRO for Diamond_D');
 +
 +is(Diamond_D->foo, 
 +   'Diamond_D::foo => Diamond_A::foo', 
 +   '... got the right next::method dispatch path');
-=== ext/mro/t/vulcan_dfs.t
+=== t/mro/vulcan_dfs.t
 ==================================================================
---- ext/mro/t/vulcan_dfs.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/vulcan_dfs.t	(/local/perl-c3)	(revision 29701)
+--- t/mro/vulcan_dfs.t	(/local/perl-current)	(revision 30412)
++++ t/mro/vulcan_dfs.t	(/local/perl-c3-subg)	(revision 30412)
 @@ -0,0 +1,73 @@
 +#!./perl
 +
@@ -1224,14 +1422,14 @@
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('Vulcan'),
++    mro::get_linear_isa('Vulcan'),
 +    [ qw(Vulcan Intelligent Sentient LifeForm Object Humanoid BiPedal) ],
 +    '... got the right MRO for the Vulcan Dylan Example');  
-=== ext/mro/t/dbic_c3.t
+=== t/mro/dbic_c3.t
 ==================================================================
---- ext/mro/t/dbic_c3.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/dbic_c3.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,126 @@
+--- t/mro/dbic_c3.t	(/local/perl-current)	(revision 30412)
++++ t/mro/dbic_c3.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,125 @@
 +#!./perl
 +
 +use strict;
@@ -1244,7 +1442,6 @@
 +}
 +
 +use Test::More tests => 1;
-+use mro;
 +
 +=pod
 +
@@ -1332,7 +1529,7 @@
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('xx::DBIx::Class::Core'),
++    mro::get_linear_isa('xx::DBIx::Class::Core'),
 +    [qw/
 +        xx::DBIx::Class::Core
 +        xx::DBIx::Class::Serialize::Storable
@@ -1358,11 +1555,60 @@
 +        xx::Class::Data::Accessor
 +    /],
 +    '... got the right C3 merge order for xx::DBIx::Class::Core');
-=== ext/mro/t/complex_c3.t
+=== t/mro/method_caching.t
 ==================================================================
---- ext/mro/t/complex_c3.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/complex_c3.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,144 @@
+--- t/mro/method_caching.t	(/local/perl-current)	(revision 30412)
++++ t/mro/method_caching.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,44 @@
++#!./perl
++
++use strict;
++use warnings;
++no warnings 'redefine'; # we do a lot of this
++no warnings 'prototype'; # we do a lot of this
++
++BEGIN {
++    unless (-d 'blib') {
++        chdir 't' if -d 't';
++        @INC = '../lib';
++    }
++}
++
++use Test::More;
++
++{
++    package MCTest::Base;
++    sub foo { return $_[1]+1 };
++    sub bar { 42 };
++
++    package MCTest::Derived;
++    our @ISA = qw/MCTest::Base/;
++}
++
++# These are various ways of re-defining MCTest::Base::foo and checking whether the method is cached when it shouldn't be
++my @testsubs = (
++    sub { eval 'sub MCTest::Base::foo { return $_[1]+2 }'; is(MCTest::Derived->foo(0), 2); },
++    sub { eval 'sub MCTest::Base::foo($) { return $_[1]+3 }'; is(MCTest::Derived->foo(0), 3); },
++    sub { eval 'sub MCTest::Base::foo($) { 4 }'; is(MCTest::Derived->foo(0), 4); },
++    sub { *MCTest::Base::foo = sub { $_[1]+5 }; is(MCTest::Derived->foo(0), 5); },
++    sub { local *MCTest::Base::foo = sub { $_[1]+6 }; is(MCTest::Derived->foo(0), 6); },
++    sub { is(MCTest::Derived->foo(0), 5); },
++    sub { *ASDF::asdf = sub { $_[1]+7 }; *MCTest::Base::foo = \&ASDF::asdf; is(MCTest::Derived->foo(0), 7); },
++    sub { *ASDF::asdf = sub { $_[1]+7 }; *MCTest::Base::foo = \&ASDF::asdf; is(MCTest::Derived->foo(0), 7); },
++    sub { undef *MCTest::Base::foo; eval { MCTest::Derived->foo(0) }; like($@, qr/locate object method/); },
++    sub { sub MCTest::Base::foo($); *MCTest::Base::foo = \&ASDF::asdf; is(MCTest::Derived->foo(0), 7); },
++    sub { *XYZ = sub { $_[1]+8 }; ${MCTest::Base::}{foo} = \&XYZ; is(MCTest::Derived->foo(0), 8); },
++);
++
++plan tests => scalar(@testsubs) + 1;
++
++is(MCTest::Derived->foo(0), 1);
++$_->() for (@testsubs);
+=== t/mro/complex_c3.t
+==================================================================
+--- t/mro/complex_c3.t	(/local/perl-current)	(revision 30412)
++++ t/mro/complex_c3.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,148 @@
 +#!./perl
 +
 +use strict;
@@ -1374,8 +1620,7 @@
 +    }
 +}
 +
-+use Test::More tests => 11;
-+use mro;
++use Test::More tests => 12;
 +
 +=pod
 +
@@ -1436,6 +1681,7 @@
 +
 +    package Test::F; use mro 'c3';
 +    use base qw/Test::E/;
++    sub testmeth { "wrong" }
 +
 +    package Test::G; use mro 'c3';
 +    use base qw/Test::D/;
@@ -1445,73 +1691,77 @@
 +
 +    package Test::I; use mro 'c3';
 +    use base qw/Test::H Test::F/;
++    sub testmeth { "right" }
 +
 +    package Test::J; use mro 'c3';
 +    use base qw/Test::F/;
 +
 +    package Test::K; use mro 'c3';
 +    use base qw/Test::J Test::I/;
++    sub testmeth { shift->next::method }
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::A'),
++    mro::get_linear_isa('Test::A'),
 +    [ qw(Test::A) ],
 +    '... got the right C3 merge order for Test::A');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::B'),
++    mro::get_linear_isa('Test::B'),
 +    [ qw(Test::B) ],
 +    '... got the right C3 merge order for Test::B');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::C'),
++    mro::get_linear_isa('Test::C'),
 +    [ qw(Test::C) ],
 +    '... got the right C3 merge order for Test::C');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::D'),
++    mro::get_linear_isa('Test::D'),
 +    [ qw(Test::D Test::A Test::B Test::C) ],
 +    '... got the right C3 merge order for Test::D');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::E'),
++    mro::get_linear_isa('Test::E'),
 +    [ qw(Test::E Test::D Test::A Test::B Test::C) ],
 +    '... got the right C3 merge order for Test::E');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::F'),
++    mro::get_linear_isa('Test::F'),
 +    [ qw(Test::F Test::E Test::D Test::A Test::B Test::C) ],
 +    '... got the right C3 merge order for Test::F');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::G'),
++    mro::get_linear_isa('Test::G'),
 +    [ qw(Test::G Test::D Test::A Test::B Test::C) ],
 +    '... got the right C3 merge order for Test::G');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::H'),
++    mro::get_linear_isa('Test::H'),
 +    [ qw(Test::H Test::G Test::D Test::A Test::B Test::C) ],
 +    '... got the right C3 merge order for Test::H');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::I'),
++    mro::get_linear_isa('Test::I'),
 +    [ qw(Test::I Test::H Test::G Test::F Test::E Test::D Test::A Test::B Test::C) ],
 +    '... got the right C3 merge order for Test::I');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::J'),
++    mro::get_linear_isa('Test::J'),
 +    [ qw(Test::J Test::F Test::E Test::D Test::A Test::B Test::C) ],
 +    '... got the right C3 merge order for Test::J');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::K'),
++    mro::get_linear_isa('Test::K'),
 +    [ qw(Test::K Test::J Test::I Test::H Test::G Test::F Test::E Test::D Test::A Test::B Test::C) ],
 +    '... got the right C3 merge order for Test::K');
-=== ext/mro/t/dbic_dfs.t
++
++is(Test::K->testmeth(), "right", 'next::method working ok');
+=== t/mro/dbic_dfs.t
 ==================================================================
---- ext/mro/t/dbic_dfs.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/dbic_dfs.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,126 @@
+--- t/mro/dbic_dfs.t	(/local/perl-current)	(revision 30412)
++++ t/mro/dbic_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,125 @@
 +#!./perl
 +
 +use strict;
@@ -1524,7 +1774,6 @@
 +}
 +
 +use Test::More tests => 1;
-+use mro;
 +
 +=pod
 +
@@ -1612,7 +1861,7 @@
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('xx::DBIx::Class::Core'),
++    mro::get_linear_isa('xx::DBIx::Class::Core'),
 +    [qw/
 +        xx::DBIx::Class::Core
 +        xx::DBIx::Class::Serialize::Storable
@@ -1638,10 +1887,10 @@
 +        xx::DBIx::Class::ResultSourceProxy
 +    /],
 +    '... got the right DFS merge order for xx::DBIx::Class::Core');
-=== ext/mro/t/recursion_c3.t
+=== t/mro/recursion_c3.t
 ==================================================================
---- ext/mro/t/recursion_c3.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/recursion_c3.t	(/local/perl-c3)	(revision 29701)
+--- t/mro/recursion_c3.t	(/local/perl-current)	(revision 30412)
++++ t/mro/recursion_c3.t	(/local/perl-c3-subg)	(revision 30412)
 @@ -0,0 +1,90 @@
 +#!./perl
 +
@@ -1715,7 +1964,7 @@
 +        local $SIG{ALRM} = sub { die "ALRMTimeout" };
 +        alarm(3);
 +        $loopy->();
-+        mro::get_mro_linear_c3('K');
++        mro::get_linear_isa('K', 'c3');
 +    };
 +
 +    if(my $err = $@) {
@@ -1733,11 +1982,11 @@
 +        ok(0, "Infinite loop apparently succeeded???");
 +    }
 +}
-=== ext/mro/t/overload_c3.t
+=== t/mro/overload_c3.t
 ==================================================================
---- ext/mro/t/overload_c3.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/overload_c3.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,55 @@
+--- t/mro/overload_c3.t	(/local/perl-current)	(revision 30412)
++++ t/mro/overload_c3.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,54 @@
 +#!./perl
 +
 +use strict;
@@ -1750,7 +1999,6 @@
 +}
 +
 +use Test::More tests => 7;
-+use mro;
 +
 +{
 +    package BaseTest;
@@ -1793,11 +2041,11 @@
 +ok(!$@, '... this should not throw an exception');
 +ok($result, '... and we should get the true value');
 +
-=== ext/mro/t/complex_dfs.t
+=== t/mro/complex_dfs.t
 ==================================================================
---- ext/mro/t/complex_dfs.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/complex_dfs.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,144 @@
+--- t/mro/complex_dfs.t	(/local/perl-current)	(revision 30412)
++++ t/mro/complex_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,143 @@
 +#!./perl
 +
 +use strict;
@@ -1810,7 +2058,6 @@
 +}
 +
 +use Test::More tests => 11;
-+use mro;
 +
 +=pod
 +
@@ -1889,64 +2136,64 @@
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::A'),
++    mro::get_linear_isa('Test::A'),
 +    [ qw(Test::A) ],
 +    '... got the right DFS merge order for Test::A');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::B'),
++    mro::get_linear_isa('Test::B'),
 +    [ qw(Test::B) ],
 +    '... got the right DFS merge order for Test::B');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::C'),
++    mro::get_linear_isa('Test::C'),
 +    [ qw(Test::C) ],
 +    '... got the right DFS merge order for Test::C');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::D'),
++    mro::get_linear_isa('Test::D'),
 +    [ qw(Test::D Test::A Test::B Test::C) ],
 +    '... got the right DFS merge order for Test::D');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::E'),
++    mro::get_linear_isa('Test::E'),
 +    [ qw(Test::E Test::D Test::A Test::B Test::C) ],
 +    '... got the right DFS merge order for Test::E');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::F'),
++    mro::get_linear_isa('Test::F'),
 +    [ qw(Test::F Test::E Test::D Test::A Test::B Test::C) ],
 +    '... got the right DFS merge order for Test::F');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::G'),
++    mro::get_linear_isa('Test::G'),
 +    [ qw(Test::G Test::D Test::A Test::B Test::C) ],
 +    '... got the right DFS merge order for Test::G');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::H'),
++    mro::get_linear_isa('Test::H'),
 +    [ qw(Test::H Test::G Test::D Test::A Test::B Test::C) ],
 +    '... got the right DFS merge order for Test::H');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::I'),
++    mro::get_linear_isa('Test::I'),
 +    [ qw(Test::I Test::H Test::G Test::D Test::A Test::B Test::C Test::F Test::E) ],
 +    '... got the right DFS merge order for Test::I');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::J'),
++    mro::get_linear_isa('Test::J'),
 +    [ qw(Test::J Test::F Test::E Test::D Test::A Test::B Test::C) ],
 +    '... got the right DFS merge order for Test::J');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::K'),
++    mro::get_linear_isa('Test::K'),
 +    [ qw(Test::K Test::J Test::F Test::E Test::D Test::A Test::B Test::C Test::I Test::H Test::G) ],
 +    '... got the right DFS merge order for Test::K');
-=== ext/mro/t/inconsistent_c3.t
+=== t/mro/inconsistent_c3.t
 ==================================================================
---- ext/mro/t/inconsistent_c3.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/inconsistent_c3.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,48 @@
+--- t/mro/inconsistent_c3.t	(/local/perl-current)	(revision 30412)
++++ t/mro/inconsistent_c3.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,47 @@
 +#!./perl
 +
 +use strict;
@@ -1959,7 +2206,6 @@
 +}
 +
 +use Test::More tests => 1;
-+use mro;
 +
 +=pod
 +
@@ -1993,12 +2239,12 @@
 +    our @ISA = ('XY', 'YX');
 +}
 +
-+eval { mro::get_mro_linear_c3('Z') };
++eval { mro::get_linear_isa('Z', 'c3') };
 +like($@, qr/^Inconsistent /, '... got the right error with an inconsistent hierarchy');
-=== ext/mro/t/recursion_dfs.t
+=== t/mro/recursion_dfs.t
 ==================================================================
---- ext/mro/t/recursion_dfs.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/recursion_dfs.t	(/local/perl-c3)	(revision 29701)
+--- t/mro/recursion_dfs.t	(/local/perl-current)	(revision 30412)
++++ t/mro/recursion_dfs.t	(/local/perl-c3-subg)	(revision 30412)
 @@ -0,0 +1,90 @@
 +#!./perl
 +
@@ -2072,7 +2318,7 @@
 +        local $SIG{ALRM} = sub { die "ALRMTimeout" };
 +        alarm(3);
 +        $loopy->();
-+        mro::get_mro_linear_dfs('K');
++        mro::get_linear_isa('K', 'dfs');
 +    };
 +
 +    if(my $err = $@) {
@@ -2090,11 +2336,11 @@
 +        ok(0, "Infinite loop apparently succeeded???");
 +    }
 +}
-=== ext/mro/t/basic_01_c3.t
+=== t/mro/basic_01_c3.t
 ==================================================================
---- ext/mro/t/basic_01_c3.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/basic_01_c3.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,54 @@
+--- t/mro/basic_01_c3.t	(/local/perl-current)	(revision 30412)
++++ t/mro/basic_01_c3.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,53 @@
 +#!./perl
 +
 +use strict;
@@ -2107,7 +2353,6 @@
 +}
 +
 +use Test::More tests => 4;
-+use mro;
 +
 +=pod
 +
@@ -2142,18 +2387,18 @@
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('Diamond_D'),
++    mro::get_linear_isa('Diamond_D'),
 +    [ qw(Diamond_D Diamond_B Diamond_C Diamond_A) ],
 +    '... got the right MRO for Diamond_D');
 +
 +is(Diamond_D->hello, 'Diamond_C::hello', '... method resolved itself as expected');
 +is(Diamond_D->can('hello')->(), 'Diamond_C::hello', '... can(method) resolved itself as expected');
 +is(UNIVERSAL::can("Diamond_D", 'hello')->(), 'Diamond_C::hello', '... can(method) resolved itself as expected');
-=== ext/mro/t/basic_02_c3.t
+=== t/mro/basic_02_c3.t
 ==================================================================
---- ext/mro/t/basic_02_c3.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/basic_02_c3.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,122 @@
+--- t/mro/basic_02_c3.t	(/local/perl-current)	(revision 30412)
++++ t/mro/basic_02_c3.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,121 @@
 +#!./perl
 +
 +use strict;
@@ -2166,7 +2411,6 @@
 +}
 +
 +use Test::More tests => 10;
-+use mro;
 +
 +=pod
 +
@@ -2243,32 +2487,32 @@
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::F'),
++    mro::get_linear_isa('Test::F'),
 +    [ qw(Test::F Test::O) ],
 +    '... got the right MRO for Test::F');
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::E'),
++    mro::get_linear_isa('Test::E'),
 +    [ qw(Test::E Test::O) ],
 +    '... got the right MRO for Test::E');    
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::D'),
++    mro::get_linear_isa('Test::D'),
 +    [ qw(Test::D Test::O) ],
 +    '... got the right MRO for Test::D');       
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::C'),
++    mro::get_linear_isa('Test::C'),
 +    [ qw(Test::C Test::D Test::F Test::O) ],
 +    '... got the right MRO for Test::C'); 
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::B'),
++    mro::get_linear_isa('Test::B'),
 +    [ qw(Test::B Test::D Test::E Test::O) ],
 +    '... got the right MRO for Test::B');     
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::A'),
++    mro::get_linear_isa('Test::A'),
 +    [ qw(Test::A Test::B Test::C Test::D Test::E Test::F Test::O) ],
 +    '... got the right MRO for Test::A');  
 +    
@@ -2276,11 +2520,11 @@
 +is(Test::A->can('C_or_D')->(), 'Test::C', '... can got the expected method output');
 +is(Test::A->C_or_E, 'Test::C', '... got the expected method output');
 +is(Test::A->can('C_or_E')->(), 'Test::C', '... can got the expected method output');
-=== ext/mro/t/overload_dfs.t
+=== t/mro/overload_dfs.t
 ==================================================================
---- ext/mro/t/overload_dfs.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/overload_dfs.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,55 @@
+--- t/mro/overload_dfs.t	(/local/perl-current)	(revision 30412)
++++ t/mro/overload_dfs.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,54 @@
 +#!./perl
 +
 +use strict;
@@ -2293,7 +2537,6 @@
 +}
 +
 +use Test::More tests => 7;
-+use mro;
 +
 +{
 +    package BaseTest;
@@ -2336,11 +2579,11 @@
 +ok(!$@, '... this should not throw an exception');
 +ok($result, '... and we should get the true value');
 +
-=== ext/mro/t/basic_03_c3.t
+=== t/mro/basic_03_c3.t
 ==================================================================
---- ext/mro/t/basic_03_c3.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/basic_03_c3.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,108 @@
+--- t/mro/basic_03_c3.t	(/local/perl-current)	(revision 30412)
++++ t/mro/basic_03_c3.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,107 @@
 +#!./perl
 +
 +use strict;
@@ -2353,7 +2596,6 @@
 +}
 +
 +use Test::More tests => 4;
-+use mro;
 +
 +=pod
 +
@@ -2437,7 +2679,7 @@
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('Test::A'),
++    mro::get_linear_isa('Test::A'),
 +    [ qw(Test::A Test::B Test::E Test::C Test::D Test::F Test::O) ],
 +    '... got the right MRO for Test::A');      
 +    
@@ -2449,11 +2691,11 @@
 +# would actually call Test::D before Test::C and Test::D is a
 +# subclass of Test::C 
 +is(Test::A->C_or_D, 'Test::C', '... got the right method dispatch');    
-=== ext/mro/t/basic_04_c3.t
+=== t/mro/basic_04_c3.t
 ==================================================================
---- ext/mro/t/basic_04_c3.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/basic_04_c3.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,41 @@
+--- t/mro/basic_04_c3.t	(/local/perl-current)	(revision 30412)
++++ t/mro/basic_04_c3.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,40 @@
 +#!./perl
 +
 +use strict;
@@ -2466,7 +2708,6 @@
 +}
 +
 +use Test::More tests => 1;
-+use mro;
 +
 +=pod 
 +
@@ -2491,15 +2732,15 @@
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('t::lib::F'),
++    mro::get_linear_isa('t::lib::F'),
 +    [ qw(t::lib::F t::lib::C t::lib::D t::lib::A t::lib::B t::lib::E) ],
 +    '... got the right MRO for t::lib::F');  
 +
-=== ext/mro/t/basic_05_c3.t
+=== t/mro/basic_05_c3.t
 ==================================================================
---- ext/mro/t/basic_05_c3.t	(/local/perl-current)	(revision 29701)
-+++ ext/mro/t/basic_05_c3.t	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,62 @@
+--- t/mro/basic_05_c3.t	(/local/perl-current)	(revision 30412)
++++ t/mro/basic_05_c3.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,61 @@
 +#!./perl
 +
 +use strict;
@@ -2512,7 +2753,6 @@
 +}
 +
 +use Test::More tests => 2;
-+use mro;
 +
 +=pod
 +
@@ -2555,292 +2795,148 @@
 +}
 +
 +is_deeply(
-+    mro::get_mro_linear('Diamond_D'),
++    mro::get_linear_isa('Diamond_D'),
 +    [ qw(Diamond_D Diamond_C Diamond_B Diamond_A) ],
 +    '... got the right MRO for Diamond_D');
 +
 +is(Diamond_D->foo, 
 +   'Diamond_D::foo => Diamond_B::foo => Diamond_A::foo', 
 +   '... got the right next::method dispatch path');
-=== ext/mro/mro.xs
+=== t/op/magic.t
 ==================================================================
---- ext/mro/mro.xs	(/local/perl-current)	(revision 29701)
-+++ ext/mro/mro.xs	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,102 @@
-+/*	mro.xs
-+ *
-+ *	Copyright (c) 2006 Brandon L Black
-+ *
-+ *	You may distribute under the terms of either the GNU General Public
-+ *	License or the Artistic License, as specified in the README file.
-+ *
-+ */
-+
-+#define PERL_NO_GET_CONTEXT
-+#include "EXTERN.h"
-+#include "perl.h"
-+#include "XSUB.h"
-+
-+MODULE = mro	PACKAGE = mro
-+
-+AV*
-+get_mro_linear(classname)
-+        SV* classname
-+    CODE:
-+        HV* class_stash;
-+        class_stash = gv_stashsv(classname, 0);
-+        if(!class_stash) croak("No such class: '%"SVf"'!", SVfARG(classname));
-+        RETVAL = mro_linear(class_stash);
-+    OUTPUT:
-+        RETVAL
-+
-+AV*
-+get_mro_linear_dfs(classname)
-+        SV* classname
-+    CODE:
-+        HV* class_stash;
-+        class_stash = gv_stashsv(classname, 0);
-+        if(!class_stash) croak("No such class: '%"SVf"'!", SVfARG(classname));
-+        RETVAL = mro_linear_dfs(class_stash, 0);
-+    OUTPUT:
-+        RETVAL
-+
-+AV*
-+get_mro_linear_c3(classname)
-+        SV* classname
-+    CODE:
-+        HV* class_stash;
-+        class_stash = gv_stashsv(classname, 0);
-+        if(!class_stash) croak("No such class: '%"SVf"'!", SVfARG(classname));
-+        RETVAL = mro_linear_c3(class_stash, 0);
-+    OUTPUT:
-+        RETVAL
-+
-+void
-+set_mro_dfs(classname)
-+        SV* classname
-+    CODE:
-+        HV* class_stash;
-+        struct mro_meta* meta;
-+        class_stash = gv_stashsv(classname, GV_ADD);
-+        if(!class_stash) croak("Cannot create class: '%"SVf"'!", SVfARG(classname));
-+        meta = HvMROMETA(class_stash);
-+        if(meta->mro_which != MRO_DFS) {
-+            meta->mro_which = MRO_DFS;
-+	    PL_sub_generation++;
-+        }
-+
-+void
-+set_mro_c3(classname)
-+        SV* classname
-+    CODE:
-+        HV* class_stash;
-+        struct mro_meta* meta;
-+        class_stash = gv_stashsv(classname, GV_ADD);
-+        if(!class_stash) croak("Cannot create class: '%"SVf"'!", SVfARG(classname));
-+        meta = HvMROMETA(class_stash);
-+        if(meta->mro_which != MRO_C3) {
-+            meta->mro_which = MRO_C3;
-+	    PL_sub_generation++;
-+        }
-+
-+bool
-+is_mro_dfs(classname)
-+        SV* classname
-+    CODE:
-+        HV* class_stash;
-+        struct mro_meta* meta;
-+        class_stash = gv_stashsv(classname, 0);
-+        if(!class_stash) croak("No such class: '%"SVf"'!", SVfARG(classname));
-+        meta = HvMROMETA(class_stash);
-+	RETVAL = (meta->mro_which == MRO_DFS);
-+    OUTPUT:
-+        RETVAL
-+
-+bool
-+is_mro_c3(classname)
-+        SV* classname
-+    CODE:
-+        HV* class_stash;
-+        struct mro_meta* meta;
-+        class_stash = gv_stashsv(classname, 0);
-+        if(!class_stash) croak("No such class: '%"SVf"'!", SVfARG(classname));
-+        meta = HvMROMETA(class_stash);
-+	RETVAL = (meta->mro_which == MRO_C3);
-+    OUTPUT:
-+        RETVAL
-=== ext/mro/Makefile.PL
+--- t/op/magic.t	(/local/perl-current)	(revision 30412)
++++ t/op/magic.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -440,7 +440,10 @@
+ if (!$Is_VMS) {
+     local @ISA;
+     local %ENV;
+-    eval { push @ISA, __PACKAGE__ };
++    # This used to be __PACKAGE__, but that causes recursive
++    #  inheritance, which is detected earlier now and broke
++    #  this test
++    eval { push @ISA, __FILE__ };
+     ok( $@ eq '', 'Push a constant on a magic array');
+     $@ and print "# $@";
+     eval { %ENV = (PATH => __PACKAGE__) };
+=== NetWare/Makefile
 ==================================================================
---- ext/mro/Makefile.PL	(/local/perl-current)	(revision 29701)
-+++ ext/mro/Makefile.PL	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,35 @@
-+use ExtUtils::MakeMaker;
-+use Config;
-+use File::Spec;
-+
-+my $e = $Config{'exe_ext'};
-+my $o = $Config{'obj_ext'};
-+my $exeout_flag = '-o ';
-+if ($^O eq 'MSWin32') {
-+    if ($Config{'cc'} =~ /^cl/i) {
-+	$exeout_flag = '-Fe';
-+    }
-+    elsif ($Config{'cc'} =~ /^bcc/i) {
-+	$exeout_flag = '-e';
-+    }
-+}
-+
-+WriteMakefile(
-+    NAME	    => "mro",
-+    VERSION_FROM    => "mro.pm",
-+    MAN3PODS	    => {},
-+    clean	    => {
-+	FILES	    => "perl$e *$o mro.c *~"
-+    }
-+);
-+
-+package MY;
-+
-+sub post_constants {
-+    "\nLIBS = $Config::Config{libs}\n"
-+}
-+
-+sub upupfile {
-+    File::Spec->catfile(File::Spec->updir,
-+			File::Spec->updir, $_[0]);
-+}
-=== ext/mro/mro.pm
+--- NetWare/Makefile	(/local/perl-current)	(revision 30412)
++++ NetWare/Makefile	(/local/perl-c3-subg)	(revision 30412)
+@@ -701,6 +701,7 @@
+ 		..\dump.c	\
+ 		..\globals.c	\
+ 		..\gv.c		\
++		..\mro.c	\
+ 		..\hv.c		\
+ 		..\locale.c	\
+                 ..\mathoms.c    \
+=== vms/descrip_mms.template
 ==================================================================
---- ext/mro/mro.pm	(/local/perl-current)	(revision 29701)
-+++ ext/mro/mro.pm	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,91 @@
-+#      mro.pm
-+#
-+#      Copyright (c) 2006 Brandon L Black
-+#
-+#      You may distribute under the terms of either the GNU General Public
-+#      License or the Artistic License, as specified in the README file.
-+#
-+package mro;
-+use strict;
-+use warnings;
+--- vms/descrip_mms.template	(/local/perl-current)	(revision 30412)
++++ vms/descrip_mms.template	(/local/perl-c3-subg)	(revision 30412)
+@@ -279,13 +279,13 @@
+ 
+ #### End of system configuration section. ####
+ 
+-c0 = $(MALLOC_C) $(SOCKC) av.c deb.c doio.c doop.c dump.c globals.c gv.c hv.c
++c0 = $(MALLOC_C) $(SOCKC) av.c deb.c doio.c doop.c dump.c globals.c gv.c hv.c mro.c
+ c1 = mg.c locale.c mathoms.c miniperlmain.c numeric.c op.c pad.c perl.c perlapi.c perlio.c
+ c2 = perly.c pp.c pp_ctl.c pp_hot.c pp_pack.c pp_sort.c pp_sys.c regcomp.c regexec.c reentr.c
+ c3 = run.c scope.c sv.c taint.c toke.c universal.c utf8.c util.c vms.c xsutils.c
+ c = $(c0) $(c1) $(c2) $(c3)
+ 
+-obj0 = $(MALLOC_O) $(SOCKO) av$(O) deb$(O) doio$(O) doop$(O) dump$(O)
++obj0 = $(MALLOC_O) $(SOCKO) av$(O) deb$(O) doio$(O) doop$(O) dump$(O) mro$(O)
+ obj1 = globals$(O) gv$(O) hv$(O) locale$(O) mathoms$(O) mg$(O) miniperlmain$(O) numeric$(O) op$(O) pad$(O)
+ obj2 = perl$(O) perlapi$(O) perlio$(O) perly$(O) pp$(O) pp_ctl$(O) pp_hot$(O) reentr$(O)
+ obj3 = pp_pack$(O) pp_sort$(O) pp_sys$(O) regcomp$(O) regexec$(O) run$(O) scope$(O) sv$(O) taint$(O) toke$(O)
+@@ -1615,6 +1615,8 @@
+ 	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
+ gv$(O) : gv.c $(h)
+ 	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
++mro$(O) : mro.c $(h)
++	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
+ hv$(O) : hv.c $(h)
+ 	$(CC) $(CORECFLAGS) $(MMS$SOURCE)
+ locale$(O) : locale.c $(h)
+=== Makefile.SH
+==================================================================
+--- Makefile.SH	(/local/perl-current)	(revision 30412)
++++ Makefile.SH	(/local/perl-c3-subg)	(revision 30412)
+@@ -367,7 +367,7 @@
+ h5 = utf8.h warnings.h
+ h = $(h1) $(h2) $(h3) $(h4) $(h5)
+ 
+-c1 = av.c scope.c op.c doop.c doio.c dump.c gv.c hv.c mg.c reentr.c  perl.c
++c1 = av.c scope.c op.c doop.c doio.c dump.c gv.c hv.c mg.c reentr.c mro.c perl.c
+ c2 = perly.c pp.c pp_hot.c pp_ctl.c pp_sys.c regcomp.c regexec.c utf8.c sv.c
+ c3 = taint.c toke.c util.c deb.c run.c universal.c xsutils.c pad.c globals.c
+ c4 = perlio.c perlapi.c numeric.c mathoms.c locale.c pp_pack.c pp_sort.c
+@@ -375,7 +375,7 @@
+ 
+ c = $(c1) $(c2) $(c3) $(c4) $(c5) miniperlmain.c perlmain.c opmini.c
+ 
+-obj1 = $(madlyobj) $(mallocobj) gv$(OBJ_EXT) toke$(OBJ_EXT) perly$(OBJ_EXT) op$(OBJ_EXT) pad$(OBJ_EXT) regcomp$(OBJ_EXT) dump$(OBJ_EXT) util$(OBJ_EXT) mg$(OBJ_EXT) reentr$(OBJ_EXT)
++obj1 = $(madlyobj) $(mallocobj) gv$(OBJ_EXT) toke$(OBJ_EXT) perly$(OBJ_EXT) op$(OBJ_EXT) pad$(OBJ_EXT) regcomp$(OBJ_EXT) dump$(OBJ_EXT) util$(OBJ_EXT) mg$(OBJ_EXT) reentr$(OBJ_EXT) mro$(OBJ_EXT)
+ obj2 = hv$(OBJ_EXT) av$(OBJ_EXT) perl$(OBJ_EXT) run$(OBJ_EXT) pp_hot$(OBJ_EXT) sv$(OBJ_EXT) pp$(OBJ_EXT) scope$(OBJ_EXT) pp_ctl$(OBJ_EXT) pp_sys$(OBJ_EXT)
+ obj3 = doop$(OBJ_EXT) doio$(OBJ_EXT) regexec$(OBJ_EXT) utf8$(OBJ_EXT) taint$(OBJ_EXT) deb$(OBJ_EXT) universal$(OBJ_EXT) xsutils$(OBJ_EXT) globals$(OBJ_EXT) perlio$(OBJ_EXT) perlapi$(OBJ_EXT) numeric$(OBJ_EXT) mathoms$(OBJ_EXT) locale$(OBJ_EXT) pp_pack$(OBJ_EXT) pp_sort$(OBJ_EXT)
+ 
+=== proto.h
+==================================================================
+--- proto.h	(/local/perl-current)	(revision 30412)
++++ proto.h	(/local/perl-c3-subg)	(revision 30412)
+@@ -635,6 +635,25 @@
+ PERL_CALLCONV GV*	Perl_gv_fetchfile_flags(pTHX_ const char *const name, const STRLEN len, const U32 flags)
+ 			__attribute__nonnull__(pTHX_1);
+ 
++PERL_CALLCONV struct mro_meta*	Perl_mro_meta_init(pTHX_ HV* stash)
++			__attribute__nonnull__(pTHX_1);
 +
-+our $VERSION = '0.01';
++PERL_CALLCONV AV*	Perl_mro_linear(pTHX_ HV* stash)
++			__attribute__nonnull__(pTHX_1);
 +
-+use XSLoader ();
++PERL_CALLCONV AV*	Perl_mro_linear_c3(pTHX_ HV* stash, I32 level)
++			__attribute__nonnull__(pTHX_1);
 +
-+sub import {
-+    my $arg = $_[1];
-+    if($arg) {
-+        if($arg eq 'c3') {
-+            set_mro_c3(scalar(caller));
-+        }
-+        elsif($arg eq 'dfs') {
-+            set_mro_dfs(scalar(caller));
-+        }
-+    }
-+}
++PERL_CALLCONV AV*	Perl_mro_linear_dfs(pTHX_ HV* stash, I32 level)
++			__attribute__nonnull__(pTHX_1);
 +
-+XSLoader::load 'mro';
++PERL_CALLCONV void	Perl_mro_isa_changed_in(pTHX_ HV* stash)
++			__attribute__nonnull__(pTHX_1);
 +
-+1;
++PERL_CALLCONV void	Perl_mro_method_changed_in(pTHX_ HV* stash)
++			__attribute__nonnull__(pTHX_1);
 +
-+__END__
-+
-+=head1 NAME
-+
-+mro - Method Resolution Order
-+
-+=head1 SYNOPSIS
-+
-+	use mro; # just gain access to mro::* functions
-+        use mro 'c3'; # enable C3 mro for this class
-+        use mro 'dfs'; # enable DFS mro for this class (Perl default)
-+
-+=head1 DESCRIPTION
-+
-+TODO
-+
-+=head1 OVERVIEW
-+
-+TODO
-+
-+=head1 Functions
-+
-+All of these take a scalar classname as the only argument
-+
-+=head2 mro_linear
-+
-+Return an arrayref which is the linearized MRO of the given class.
-+Uses whichever MRO is currently in effect for that class.
-+
-+=head2 mro_linear_dfs
-+
-+Return an arrayref which is the linearized MRO of the given classname.
-+Uses the DFS (perl default) MRO algorithm.
-+
-+=head2 mro_linear_c3
-+
-+Return an arrayref which is the linearized MRO of the given class.
-+Uses the C3 MRO algorithm.
-+
-+=head2 set_mro_dfs
-+
-+Sets the MRO of the given class to DFS (perl default).
-+
-+=head2 set_mro_c3
-+
-+Sets the MRO of the given class to C3.
-+
-+=head2 is_mro_dfs
-+
-+Return boolean indicating whether the given class is using the DFS (Perl default) MRO.
-+
-+=head2 is_mro_c3
-+
-+Return boolean indicating whether the given class is using the C3 MRO.
-+
-+=head1 AUTHOR
-+
-+Brandon L Black, C<blblack@gmail.com>
-+
-+=cut
++PERL_CALLCONV void	Perl_boot_core_mro(pTHX);
+ PERL_CALLCONV GV*	Perl_gv_fetchmeth(pTHX_ HV* stash, const char* name, STRLEN len, I32 level)
+ 			__attribute__nonnull__(pTHX_2);
+ 
+=== ext/B/t/b.t
+==================================================================
+--- ext/B/t/b.t	(/local/perl-current)	(revision 30412)
++++ ext/B/t/b.t	(/local/perl-c3-subg)	(revision 30412)
+@@ -169,7 +169,7 @@
+ {
+     no warnings 'once';
+     my $sg = B::sub_generation();
+-    *Whatever::hand_waving = sub { };
++    *UNIVERSAL::hand_waving = sub { };
+     ok( $sg < B::sub_generation, "sub_generation increments" );
+ }
+ 
 === MANIFEST
 ==================================================================
---- MANIFEST	(/local/perl-current)	(revision 29701)
-+++ MANIFEST	(/local/perl-c3)	(revision 29701)
-@@ -894,6 +894,30 @@
- ext/MIME/Base64/t/quoted-print.t	See whether MIME::QuotedPrint works
- ext/MIME/Base64/t/unicode.t	See whether MIME::Base64 works
- ext/MIME/Base64/t/warn.t	See whether MIME::Base64 works
-+ext/mro/Makefile.PL		mro extension
-+ext/mro/mro.xs			mro extension
-+ext/mro/mro.pm			mro extension
-+ext/mro/t/basic_01_c3.t		mro tests
-+ext/mro/t/basic_01_dfs.t		mro tests
-+ext/mro/t/basic_02_c3.t		mro tests
-+ext/mro/t/basic_02_dfs.t		mro tests
-+ext/mro/t/basic_03_c3.t		mro tests
-+ext/mro/t/basic_03_dfs.t		mro tests
-+ext/mro/t/basic_04_c3.t		mro tests
-+ext/mro/t/basic_04_dfs.t		mro tests
-+ext/mro/t/basic_05_c3.t		mro tests
-+ext/mro/t/basic_05_dfs.t		mro tests
-+ext/mro/t/complex_c3.t		mro tests
-+ext/mro/t/complex_dfs.t		mro tests
-+ext/mro/t/dbic_c3.t		mro tests
-+ext/mro/t/dbic_dfs.t		mro tests
-+ext/mro/t/inconsistent_c3.t	mro tests
-+ext/mro/t/overload_c3.t		mro tests
-+ext/mro/t/overload_dfs.t		mro tests
-+ext/mro/t/recursion_c3.t		mro tests
-+ext/mro/t/recursion_dfs.t		mro tests
-+ext/mro/t/vulcan_c3.t		mro tests
-+ext/mro/t/vulcan_dfs.t		mro tests
- ext/NDBM_File/hints/cygwin.pl	Hint for NDBM_File for named architecture
- ext/NDBM_File/hints/dec_osf.pl	Hint for NDBM_File for named architecture
- ext/NDBM_File/hints/dynixptx.pl	Hint for NDBM_File for named architecture
-@@ -2860,6 +2884,7 @@
+--- MANIFEST	(/local/perl-current)	(revision 30412)
++++ MANIFEST	(/local/perl-c3-subg)	(revision 30412)
+@@ -2252,6 +2252,7 @@
+ lib/Module/Pluggable/t/lib/OddTest/Plugin/-Dodgy.pm	Module::Pluggable tests
+ lib/Module/Pluggable/t/lib/OddTest/Plugin/Foo.pm	Module::Pluggable tests
+ lib/Module/Pluggable/t/lib/TA/C/A/I.pm	Module::Pluggable tests
++lib/mro.pm			mro extension
+ lib/Net/Changes.libnet		libnet
+ lib/Net/Cmd.pm			libnet
+ lib/Net/Config.eg		libnet
+@@ -2953,6 +2954,7 @@
  mpeix/mpeix_setjmp.c		MPE/iX port
  mpeix/nm			MPE/iX port
  mpeix/relink			MPE/iX port
@@ -2848,14 +2944,43 @@
  myconfig.SH			Prints summary of the current configuration
  NetWare/bat/Buildtype.bat	NetWare port
  NetWare/bat/SetCodeWar.bat	NetWare port
+@@ -3618,6 +3620,28 @@
+ t/lib/warnings/universal	Tests for universal.c for warnings.t
+ t/lib/warnings/utf8		Tests for utf8.c for warnings.t
+ t/lib/warnings/util		Tests for util.c for warnings.t
++t/mro/basic_01_c3.t		mro tests
++t/mro/basic_01_dfs.t		mro tests
++t/mro/basic_02_c3.t		mro tests
++t/mro/basic_02_dfs.t		mro tests
++t/mro/basic_03_c3.t		mro tests
++t/mro/basic_03_dfs.t		mro tests
++t/mro/basic_04_c3.t		mro tests
++t/mro/basic_04_dfs.t		mro tests
++t/mro/basic_05_c3.t		mro tests
++t/mro/basic_05_dfs.t		mro tests
++t/mro/complex_c3.t		mro tests
++t/mro/complex_dfs.t		mro tests
++t/mro/dbic_c3.t			mro tests
++t/mro/dbic_dfs.t		mro tests
++t/mro/inconsistent_c3.t		mro tests
++t/mro/overload_c3.t		mro tests
++t/mro/overload_dfs.t		mro tests
++t/mro/recursion_c3.t		mro tests
++t/mro/recursion_dfs.t		mro tests
++t/mro/vulcan_c3.t		mro tests
++t/mro/vulcan_dfs.t		mro tests
++t/mro/method_caching.t		mro tests
+ Todo.micro			The Wishlist for microperl
+ toke.c				The tokener
+ t/op/64bitint.t			See if 64 bit integers work
 === mro.c
 ==================================================================
---- mro.c	(/local/perl-current)	(revision 29701)
-+++ mro.c	(/local/perl-c3)	(revision 29701)
-@@ -0,0 +1,307 @@
+--- mro.c	(/local/perl-current)	(revision 30412)
++++ mro.c	(/local/perl-c3-subg)	(revision 30412)
+@@ -0,0 +1,886 @@
 +/*    mro.c
 + *
-+ *    Copyright (C) 2006 by Larry Wall and others
++ *    Copyright (c) 2007 Brandon L Black
 + *
 + *    You may distribute under the terms of either the GNU General Public
 + *    License or the Artistic License, as specified in the README file.
@@ -2874,13 +2999,27 @@
 +#include "perl.h"
 +
 +struct mro_meta*
-+Perl_mro_meta_init(pTHX_ HV* stash) {
-+    struct mro_meta* newmeta;
++Perl_mro_meta_init(pTHX_ HV* stash)
++{
++    void* newmeta;
 +
++    assert(stash);
 +    assert(HvAUX(stash));
 +    assert(!(HvAUX(stash)->xhv_mro_meta));
 +    Newxz(newmeta, sizeof(struct mro_meta), char);
-+    HvAUX(stash)->xhv_mro_meta = newmeta;
++    HvAUX(stash)->xhv_mro_meta = (struct mro_meta*)newmeta;
++    ((struct mro_meta*)newmeta)->sub_generation = 1;
++
++    /* Manually flag UNIVERSAL as being universal.
++       This happens early in perl booting (when universal.c
++       does the newXS calls for UNIVERSAL::*), and infects
++       other packages as they are added to UNIVERSAL's MRO
++    */
++    if(HvNAMELEN_get(stash) == 9
++       && strEQ(HEK_KEY(HvAUX(stash)->xhv_name), "UNIVERSAL")) {
++            HvMROMETA(stash)->is_universal = 1;
++    }
++
 +    return newmeta;
 +}
 +
@@ -2888,15 +3027,15 @@
 +=for apidoc mro_linear_dfs
 +
 +Returns the Depth-First Search linearization of @ISA
-+the given stash.  The return value is a read-only AV*,
-+and is cached based on C<PL_isa_generation>. C<level>
-+should be 0 (it is used internally in this function's
-+recursion).
++the given stash.  The return value is a read-only AV*.
++C<level> should be 0 (it is used internally in this
++function's recursion).
 +
 +=cut
 +*/
 +AV*
-+Perl_mro_linear_dfs(pTHX_ HV *stash, I32 level) {
++Perl_mro_linear_dfs(pTHX_ HV *stash, I32 level)
++{
 +    AV* retval;
 +    GV** gvp;
 +    GV* gv;
@@ -2915,26 +3054,20 @@
 +    stashname = HvNAME_get(stash);
 +    if (!stashname)
 +      Perl_croak(aTHX_
-+		 "Can't linearize anonymous symbol table");
++                 "Can't linearize anonymous symbol table");
 +
 +    if (level > 100)
-+	Perl_croak(aTHX_ "Recursive inheritance detected in package '%s'",
-+	      stashname);
++        Perl_croak(aTHX_ "Recursive inheritance detected in package '%s'",
++              stashname);
 +
 +    meta = HvMROMETA(stash);
 +    if((retval = meta->mro_linear_dfs)) {
-+        if(meta->mro_linear_dfs_gen == PL_isa_generation) {
-+            /* return the cached linearization if valid */
-+            SvREFCNT_inc_simple_void_NN(retval);
-+            return retval;
-+        }
-+        /* decref old cache and forget it */
-+        SvREFCNT_dec(retval);
-+        meta->mro_linear_dfs = NULL;
++        /* return cache if valid */
++        SvREFCNT_inc_simple_void_NN(retval);
++        return retval;
 +    }
 +
-+    /* make a new one */
-+
++    /* not in cache, make a new one */
 +    retval = (AV*)sv_2mortal((SV*)newAV());
 +    av_push(retval, newSVpv(stashname, 0)); /* add ourselves at the top */
 +
@@ -2950,20 +3083,22 @@
 +            HV* const basestash = gv_stashsv(sv, 0);
 +
 +            if (!basestash) {
-+                if (ckWARN(WARN_MISC))
-+                    Perl_warner(aTHX_ packWARN(WARN_MISC), "Can't locate package %"SVf" for @%s::ISA",
-+                        SVfARG(sv), stashname);
-+                continue;
++                if(!hv_exists_ent(stored, sv, 0)) {
++                    av_push(retval, newSVsv(sv));
++                    hv_store_ent(stored, sv, &PL_sv_undef, 0);
++                }
 +            }
-+
-+            subrv = (AV*)sv_2mortal((SV*)mro_linear_dfs(basestash, level + 1));
-+            subrv_p = AvARRAY(subrv);
-+            subrv_items = AvFILLp(subrv) + 1;
-+            while(subrv_items--) {
-+                SV* subsv = *subrv_p++;
-+                if(hv_exists_ent(stored, subsv, 0)) continue;
-+                av_push(retval, newSVsv(subsv));
-+                hv_store_ent(stored, subsv, &PL_sv_undef, 0);
++            else {
++                subrv = (AV*)sv_2mortal((SV*)mro_linear_dfs(basestash, level + 1));
++                subrv_p = AvARRAY(subrv);
++                subrv_items = AvFILLp(subrv) + 1;
++                while(subrv_items--) {
++                    SV* subsv = *subrv_p++;
++                    if(!hv_exists_ent(stored, subsv, 0)) {
++                        av_push(retval, newSVsv(subsv));
++                        hv_store_ent(stored, subsv, &PL_sv_undef, 0);
++                    }
++                }
 +            }
 +        }
 +    }
@@ -2972,7 +3107,6 @@
 +    SvREFCNT_inc_simple_void_NN(retval); /* for meta storage */
 +    SvREFCNT_inc_simple_void_NN(retval); /* for return to caller */
 +    meta->mro_linear_dfs = retval;
-+    meta->mro_linear_dfs_gen = PL_isa_generation;
 +    return retval;
 +}
 +
@@ -2980,16 +3114,16 @@
 +=for apidoc mro_linear_c3
 +
 +Returns the C3 linearization of @ISA
-+the given stash.  The return value is a read-only AV*,
-+and is cached based on C<PL_isa_generation>.  C<level>
-+should be 0 (it is used internally in this function's
-+recursion).
++the given stash.  The return value is a read-only AV*.
++C<level> should be 0 (it is used internally in this
++function's recursion).
 +
 +=cut
 +*/
 +
 +AV*
-+Perl_mro_linear_c3(pTHX_ HV* stash, I32 level) {
++Perl_mro_linear_c3(pTHX_ HV* stash, I32 level)
++{
 +    AV* retval;
 +    GV** gvp;
 +    GV* gv;
@@ -3005,23 +3139,20 @@
 +    stashname_len = HvNAMELEN_get(stash);
 +    if (!stashname)
 +      Perl_croak(aTHX_
-+		 "Can't linearize anonymous symbol table");
++                 "Can't linearize anonymous symbol table");
 +
 +    if (level > 100)
-+	Perl_croak(aTHX_ "Recursive inheritance detected in package '%s'",
-+	      stashname);
++        Perl_croak(aTHX_ "Recursive inheritance detected in package '%s'",
++              stashname);
 +
 +    meta = HvMROMETA(stash);
 +    if((retval = meta->mro_linear_c3)) {
-+        if(meta->mro_linear_c3_gen == PL_isa_generation) {
-+            /* return cache if valid */
-+            SvREFCNT_inc_simple_void_NN(retval);
-+            return retval;
-+        }
-+        /* decref old cache and forget it */
-+        SvREFCNT_dec(retval);
-+        meta->mro_linear_c3 = NULL;
++        /* return cache if valid */
++        SvREFCNT_inc_simple_void_NN(retval);
++        return retval;
 +    }
++
++    /* not in cache, make a new one */
 +
 +    retval = (AV*)sv_2mortal((SV*)newAV());
 +    av_push(retval, newSVpvn(stashname, stashname_len)); /* us first */
@@ -3040,9 +3171,13 @@
 +            AV* isa_lin;
 +            SV* isa_item = *isa_ptr++;
 +            HV* isa_item_stash = gv_stashsv(isa_item, 0);
-+            if(!isa_item_stash)
-+                Perl_croak(aTHX_ "Cannot find class %"SVf" for @%s::ISA", SVfARG(isa_item), stashname);
-+            isa_lin = (AV*)sv_2mortal((SV*)mro_linear_c3(isa_item_stash, level + 1)); /* recursion */
++            if(!isa_item_stash) {
++                isa_lin = newAV();
++                av_push(isa_lin, newSVsv(isa_item));
++            }
++            else {
++                isa_lin = (AV*)sv_2mortal((SV*)mro_linear_c3(isa_item_stash, level + 1)); /* recursion */
++            }
 +            av_push(seqs, (SV*)av_make(AvFILLp(isa_lin)+1, AvARRAY(isa_lin)));
 +        }
 +        av_push(seqs, (SV*)av_make(AvFILLp(isa)+1, AvARRAY(isa)));
@@ -3111,7 +3246,7 @@
 +            }
 +            if(!cand) break;
 +            if(!winner)
-+                Perl_croak(aTHX_ "Inconsistent inheritance hierarchy during C3 merge of class '%s': "
++                Perl_croak(aTHX_ "Inconsistent hierarchy during C3 merge of class '%s': "
 +                    "merging failed on parent '%"SVf"'", stashname, SVfARG(cand));
 +        }
 +    }
@@ -3120,7 +3255,6 @@
 +    SvREFCNT_inc_simple_void_NN(retval); /* for meta storage */
 +    SvREFCNT_inc_simple_void_NN(retval); /* for return to caller */
 +    meta->mro_linear_c3 = retval;
-+    meta->mro_linear_c3_gen = PL_isa_generation;
 +    return retval;
 +}
 +
@@ -3129,8 +3263,7 @@
 +
 +Returns either C<mro_linear_c3> or C<mro_linear_dfs> for
 +the given stash, dependant upon which MRO is in effect
-+for that stash.  The return value is a read-only AV*,
-+and is cached based on C<PL_isa_generation>.
++for that stash.  The return value is a read-only AV*.
 +
 +=cut
 +*/
@@ -3152,6 +3285,577 @@
 +}
 +
 +/*
++=for apidoc mro_isa_changed_in
++
++Takes the neccesary steps (cache invalidations, mostly)
++when the @ISA of the given package has changed.  Invoked
++by the C<setisa> magic, should not need to invoke directly.
++
++=cut
++*/
++void
++Perl_mro_isa_changed_in(pTHX_ HV* stash)
++{
++    dVAR;
++    HV* isarev;
++    AV* linear_mro;
++    HE* iter;
++    SV** svp;
++    I32 items;
++    struct mro_meta* meta;
++    char* stashname;
++
++    stashname = HvNAME_get(stash);
++
++    /* wipe out the cached linearizations for this stash */
++    meta = HvMROMETA(stash);
++    sv_2mortal((SV*)meta->mro_linear_dfs);
++    sv_2mortal((SV*)meta->mro_linear_c3);
++    meta->mro_linear_dfs = NULL;
++    meta->mro_linear_c3 = NULL;
++
++    /* Wipe the global method cache if this package
++       is UNIVERSAL or one of its parents */
++    if(meta->is_universal)
++        PL_sub_generation++;
++
++    /* Wipe the local method cache otherwise */
++    else
++        meta->sub_generation++;
++
++    /* wipe next::method cache too */
++    if(meta->mro_nextmethod) hv_clear(meta->mro_nextmethod);
++    
++    /* Recalcs whichever of the above two cleared linearizations
++       are in effect and gives it to us */
++    linear_mro = mro_linear(stash);
++    isarev = meta->mro_isarev;
++
++    /* Iterate the isarev (classes that are our children),
++       wiping out their linearization and method caches */
++    if(isarev) {
++        hv_iterinit(isarev);
++        while((iter = hv_iternext(isarev))) {
++            SV* revkey = hv_iterkeysv(iter);
++            HV* revstash = gv_stashsv(revkey, 0);
++            struct mro_meta* revmeta = HvMROMETA(revstash);
++            sv_2mortal((SV*)revmeta->mro_linear_dfs);
++            sv_2mortal((SV*)revmeta->mro_linear_c3);
++            revmeta->mro_linear_dfs = NULL;
++            revmeta->mro_linear_c3 = NULL;
++            if(!meta->is_universal)
++                revmeta->sub_generation++;
++            if(revmeta->mro_nextmethod)
++                hv_clear(revmeta->mro_nextmethod);
++        }
++    }
++
++    /* we're starting at the 2nd element, skipping ourselves here */
++    svp = AvARRAY(linear_mro) + 1;
++    items = AvFILLp(linear_mro);
++    while (items--) {
++        SV* const sv = *svp++;
++        struct mro_meta* mrometa;
++        HV* mroisarev;
++
++        HV* mrostash = gv_stashsv(sv, 0);
++        if(!mrostash) {
++            mrostash = gv_stashsv(sv, GV_ADD);
++            /*
++               We created the package on the fly, so
++               that we could store isarev information.
++               This flag lets gv_fetchmeth know about it,
++               so that it can still generate the very useful
++               "Can't locate package Foo for @Bar::ISA" warning.
++            */
++            HvMROMETA(mrostash)->fake = 1;
++        }
++
++        mrometa = HvMROMETA(mrostash);
++        mroisarev = mrometa->mro_isarev;
++
++        /* is_universal is viral */
++        if(meta->is_universal)
++            mrometa->is_universal = 1;
++
++        if(!mroisarev)
++            mroisarev = mrometa->mro_isarev = newHV();
++
++        if(!hv_exists(mroisarev, stashname, strlen(stashname)))
++            hv_store(mroisarev, stashname, strlen(stashname), &PL_sv_yes, 0);
++
++        if(isarev) {
++            hv_iterinit(isarev);
++            while((iter = hv_iternext(isarev))) {
++                SV* revkey = hv_iterkeysv(iter);
++                if(!hv_exists_ent(mroisarev, revkey, 0))
++                    hv_store_ent(mroisarev, revkey, &PL_sv_yes, 0);
++            }
++        }
++    }
++}
++
++/*
++=for apidoc mro_method_changed_in
++
++Like C<mro_isa_changed_in>, but invalidates method
++caching on any child classes of the given stash, so
++that they might notice the changes in this one.
++
++Ideally, all instances of C<PL_sub_generation++> in
++the perl source should be replaced by calls to this.
++Some already are, but some are more difficult to
++replace.
++
++=cut
++*/
++void
++Perl_mro_method_changed_in(pTHX_ HV *stash)
++{
++    struct mro_meta* meta = HvMROMETA(stash);
++    HV* isarev;
++    HE* iter;
++
++    /* If stash is UNIVERSAL, or one of UNIVERSAL's parents,
++       invalidate all method caches globally */
++    if(meta->is_universal) {
++        PL_sub_generation++;
++        return;
++    }
++
++    /* else, invalidate the method caches of all child classes,
++       but not itself */
++    if((isarev = meta->mro_isarev)) {
++        hv_iterinit(isarev);
++        while((iter = hv_iternext(isarev))) {
++            SV* revkey = hv_iterkeysv(iter);
++            HV* revstash = gv_stashsv(revkey, 0);
++            struct mro_meta* mrometa = HvMROMETA(revstash);
++            mrometa->sub_generation++;
++            if(mrometa->mro_nextmethod)
++                hv_clear(mrometa->mro_nextmethod);
++        }
++    }
++}
++
++/* These two are static helpers for next::method and friends,
++   and re-implement a bunch of the code from pp_caller() in
++   a more efficient manner for this particular usage.
++*/
++
++STATIC I32
++__dopoptosub_at(const PERL_CONTEXT *cxstk, I32 startingblock) {
++    I32 i;
++    for (i = startingblock; i >= 0; i--) {
++        register const PERL_CONTEXT * const cx = &cxstk[i];
++        if(CxTYPE(cx) == CXt_SUB) {
++            DEBUG_l( Perl_deb(aTHX_ "(Found sub #%ld)\n", (long)i));
++            return i;
++        }
++    }
++    return i;
++}
++
++STATIC SV*
++__nextcan(pTHX_ SV* self, I32 barf)
++{
++    register I32 cxix = __dopoptosub_at(cxstack, cxstack_ix);
++    register const PERL_CONTEXT *cx;
++    register const PERL_CONTEXT *ccstack = cxstack;
++    const PERL_SI *top_si = PL_curstackinfo;
++    HV* selfstash;
++    GV* cvgv;
++    SV *stashname;
++    const char *fq_subname;
++    const char *subname;
++    STRLEN fq_subname_len;
++    STRLEN stashname_len;
++    STRLEN subname_len;
++    SV* sv;
++    GV** gvp;
++    AV* linear_av;
++    SV** linear_svp;
++    SV* linear_sv;
++    HV* curstash;
++    GV* candidate = NULL;
++    CV* cand_cv = NULL;
++    const char *hvname;
++    I32 items;
++    struct mro_meta* selfmeta;
++    HV* nmcache;
++    HE* cache_entry;
++
++    if(sv_isobject(self))
++        selfstash = SvSTASH(SvRV(self));
++    else
++        selfstash = gv_stashsv(self, 0);
++
++    assert(selfstash);
++
++    for (;;) {
++        /* we may be in a higher stacklevel, so dig down deeper */
++        while (cxix < 0 && top_si->si_type != PERLSI_MAIN) {
++            top_si = top_si->si_prev;
++            ccstack = top_si->si_cxstack;
++            cxix = __dopoptosub_at(ccstack, top_si->si_cxix);
++        }
++
++        if (cxix < 0) {
++            croak("next::method/next::can/maybe::next::method must be used in method context");
++        }
++    
++        /* caller() should not report the automatic calls to &DB::sub */
++        if (PL_DBsub && GvCV(PL_DBsub) && cxix >= 0 && ccstack[cxix].blk_sub.cv == GvCV(PL_DBsub))
++            continue;
++
++        cx = &ccstack[cxix];
++        if(CxTYPE(cx) != CXt_SUB) {
++            cxix = __dopoptosub_at(ccstack, cxix - 1);
++            continue;
++        }
++
++        {
++            const I32 dbcxix = __dopoptosub_at(ccstack, cxix - 1);
++            /* We expect that ccstack[dbcxix] is CXt_SUB, anyway, the
++               field below is defined for any cx. */
++            /* caller() should not report the automatic calls to &DB::sub */
++            if (PL_DBsub && GvCV(PL_DBsub) && dbcxix >= 0 && ccstack[dbcxix].blk_sub.cv == GvCV(PL_DBsub)) {
++                cx = &ccstack[dbcxix];
++                if(CxTYPE(cx) != CXt_SUB) {
++                    cxix = __dopoptosub_at(ccstack, cxix - 1);
++                    continue;
++                }
++            }
++        }
++
++        cvgv = CvGV(ccstack[cxix].blk_sub.cv);
++
++        if(!isGV(cvgv)) {
++            cxix = __dopoptosub_at(ccstack, cxix - 1);
++            continue;
++        }
++
++        /* we found a real sub here */
++        sv = sv_2mortal(newSV(0));
++
++        gv_efullname3(sv, cvgv, NULL);
++
++        fq_subname = SvPVX(sv);
++        fq_subname_len = SvCUR(sv);
++
++        selfmeta = HvMROMETA(selfstash);
++        if(!(nmcache = selfmeta->mro_nextmethod)) {
++            nmcache = selfmeta->mro_nextmethod = newHV();
++        }
++
++        if((cache_entry = hv_fetch_ent(nmcache, sv, 0, 0))) {
++            return SvREFCNT_inc_simple_NN(HeVAL(cache_entry));
++        }
++
++        subname = strrchr(fq_subname, ':');
++        if(!subname)
++            croak("next::method/next::can/maybe::next::method cannot find enclosing method");
++
++        subname++;
++        subname_len = fq_subname_len - (subname - fq_subname);
++        if(subname_len == 8 && strEQ(subname, "__ANON__")) {
++            cxix = __dopoptosub_at(ccstack, cxix - 1);
++            continue;
++        }
++        stashname_len = subname - fq_subname - 2;
++        stashname = sv_2mortal(newSVpvn(fq_subname, stashname_len));
++
++        hvname = HvNAME_get(selfstash);
++        if (!hvname)
++            croak("Can't use anonymous symbol table for method lookup");
++
++        linear_av = mro_linear_c3(selfstash, 0); /* has ourselves at the top of the list */
++        sv_2mortal((SV*)linear_av);
++
++        linear_svp = AvARRAY(linear_av);
++        items = AvFILLp(linear_av) + 1;
++
++        while (items--) {
++            linear_sv = *linear_svp++;
++            assert(linear_sv);
++            if(sv_eq(linear_sv, stashname))
++                break;
++        }
++
++        if(items < 0) goto no_next_method;
++
++        while (items--) {
++            linear_sv = *linear_svp++;
++            assert(linear_sv);
++            curstash = gv_stashsv(linear_sv, FALSE);
++
++            if (!curstash || (HvMROMETA(curstash)->fake && !HvFILL(curstash))) {
++                if (ckWARN(WARN_MISC))
++                    Perl_warner(aTHX_ packWARN(WARN_MISC), "Can't locate package %"SVf" for @%s::ISA",
++                        (void*)linear_sv, hvname);
++                continue;
++            }
++
++            assert(curstash);
++
++            gvp = (GV**)hv_fetch(curstash, subname, subname_len, 0);
++            if (!gvp) continue;
++
++            candidate = *gvp;
++            assert(candidate);
++
++            if (SvTYPE(candidate) != SVt_PVGV)
++                gv_init(candidate, curstash, subname, subname_len, TRUE);
++            if (SvTYPE(candidate) == SVt_PVGV && (cand_cv = GvCV(candidate)) && !GvCVGEN(candidate)) {
++                SvREFCNT_inc_simple_void_NN((SV*)cand_cv);
++                hv_store_ent(nmcache, newSVsv(sv), (SV*)cand_cv, 0);
++                return (SV*)cand_cv;
++            }
++        }
++
++      no_next_method:
++        hv_store_ent(nmcache, newSVsv(sv), &PL_sv_undef, 0);
++        if(!barf) return &PL_sv_undef;
++        croak("No next::method '%s' found for %s", subname, hvname);
++    }
++}
++
++#include "XSUB.h"
++
++XS(XS_mro_get_linear_isa);
++XS(XS_mro_set_mro);
++XS(XS_mro_get_mro);
++XS(XS_mro_get_global_sub_generation);
++XS(XS_mro_invalidate_all_method_caches);
++XS(XS_mro_get_sub_generation);
++XS(XS_mro_invalidate_method_cache);
++XS(XS_next_can);
++XS(XS_next_method);
++XS(XS_maybe_next_method);
++
++void
++Perl_boot_core_mro(pTHX)
++{
++    dVAR;
++    static const char file[] = __FILE__;
++
++    newXSproto("mro::get_linear_isa", XS_mro_get_linear_isa, file, "$;$");
++    newXSproto("mro::set_mro", XS_mro_set_mro, file, "$$");
++    newXSproto("mro::get_mro", XS_mro_get_mro, file, "$");
++    newXSproto("mro::get_global_sub_generation", XS_mro_get_global_sub_generation, file, "");
++    newXSproto("mro::invalidate_all_method_caches", XS_mro_invalidate_all_method_caches, file, "");
++    newXSproto("mro::get_sub_generation", XS_mro_get_sub_generation, file, "$");
++    newXSproto("mro::invalidate_method_cache", XS_mro_invalidate_method_cache, file, "$");
++    newXS("next::can", XS_next_can, file);
++    newXS("next::method", XS_next_method, file);
++    newXS("maybe::next::method", XS_maybe_next_method, file);
++}
++
++XS(XS_mro_get_linear_isa) {
++    dVAR;
++    dXSARGS;
++    AV* RETVAL;
++    HV* class_stash;
++    SV* classname;
++
++    if(items < 1 || items > 2)
++       croak("Usage: mro::get_linear_isa(classname [, type ])");
++
++    classname = ST(0);
++    class_stash = gv_stashsv(classname, 0);
++    if(!class_stash) croak("No such class: '%"SVf"'!", SVfARG(classname));
++
++    if(items > 1) {
++        char* which = SvPV_nolen(ST(1));
++        if(strEQ(which, "dfs"))
++            RETVAL = mro_linear_dfs(class_stash, 0);
++        else if(strEQ(which, "c3"))
++            RETVAL = mro_linear_c3(class_stash, 0);
++        else
++            croak("Invalid mro name: '%s'", which);
++    }
++    else {
++        RETVAL = mro_linear(class_stash);
++    }
++
++    ST(0) = newRV_noinc((SV*)RETVAL);
++    sv_2mortal(ST(0));
++    XSRETURN(1);
++}
++
++XS(XS_mro_set_mro)
++{
++    dVAR;
++    dXSARGS;
++    SV* classname;
++    char* whichstr;
++    mro_alg which;
++    HV* class_stash;
++    struct mro_meta* meta;
++
++    if (items != 2)
++       croak("Usage: mro::set_mro(classname, type)");
++
++    classname = ST(0);
++    whichstr = SvPV_nolen(ST(1));
++    class_stash = gv_stashsv(classname, GV_ADD);
++    if(!class_stash) croak("Cannot create class: '%"SVf"'!", SVfARG(classname));
++    meta = HvMROMETA(class_stash);
++
++    if(strEQ(whichstr, "dfs"))
++        which = MRO_DFS;
++    else if(strEQ(whichstr, "c3"))
++        which = MRO_C3;
++    else
++        croak("Invalid mro name: '%s'", whichstr);
++
++    if(meta->mro_which != which) {
++        meta->mro_which = which;
++        /* Only affects local method cache, not
++           even child classes */
++        meta->sub_generation++;
++        if(meta->mro_nextmethod)
++            hv_clear(meta->mro_nextmethod);
++    }
++
++    XSRETURN_EMPTY;
++}
++
++
++XS(XS_mro_get_mro)
++{
++    dVAR;
++    dXSARGS;
++    SV* classname;
++    HV* class_stash;
++    struct mro_meta* meta;
++
++    if (items != 1)
++       croak("Usage: mro::get_mro(classname)");
++
++    classname = ST(0);
++    class_stash = gv_stashsv(classname, 0);
++    if(!class_stash) croak("No such class: '%"SVf"'!", SVfARG(classname));
++    meta = HvMROMETA(class_stash);
++
++    if(meta->mro_which == MRO_DFS)
++        ST(0) = sv_2mortal(newSVpvn("dfs", 3));
++    else
++        ST(0) = sv_2mortal(newSVpvn("c3", 2));
++
++    XSRETURN(1);
++}
++
++XS(XS_mro_get_global_sub_generation)
++{
++    dVAR;
++    dXSARGS;
++
++    if (items != 0)
++        croak("Usage: mro::get_global_sub_generation()");
++
++    ST(0) = sv_2mortal(newSViv(PL_sub_generation));
++    XSRETURN(1);
++}
++
++XS(XS_mro_invalidate_all_method_caches)
++{
++    dVAR;
++    dXSARGS;
++
++    if (items != 0)
++        croak("Usage: mro::invalidate_all_method_caches()");
++
++    PL_sub_generation++;
++
++    XSRETURN_EMPTY;
++}
++
++XS(XS_mro_get_sub_generation)
++{
++    dVAR;
++    dXSARGS;
++    SV* classname;
++    HV* class_stash;
++
++    if(items != 1)
++        croak("Usage: mro::get_sub_generation(classname)");
++
++    classname = ST(0);
++    class_stash = gv_stashsv(classname, 0);
++    if(!class_stash) croak("No such class: '%"SVf"'!", SVfARG(classname));
++
++    ST(0) = sv_2mortal(newSViv(HvMROMETA(class_stash)->sub_generation));
++    XSRETURN(1);
++}
++
++XS(XS_mro_invalidate_method_cache)
++{
++    dVAR;
++    dXSARGS;
++    SV* classname;
++    HV* class_stash;
++
++    if(items != 1)
++        croak("Usage: mro::invalidate_method_cache(classname)");
++    
++    classname = ST(0);
++
++    class_stash = gv_stashsv(classname, 0);
++    if(!class_stash) croak("No such class: '%"SVf"'!", SVfARG(classname));
++
++    mro_method_changed_in(class_stash);
++
++    XSRETURN_EMPTY;
++}
++
++XS(XS_next_can)
++{
++    dVAR;
++    dXSARGS;
++    SV* self = ST(0);
++    SV* methcv = __nextcan(self, 0);
++
++    PERL_UNUSED_VAR(items);
++
++    if(methcv == &PL_sv_undef) {
++        ST(0) = &PL_sv_undef;
++    }
++    else {
++        ST(0) = sv_2mortal(newRV_inc(methcv));
++    }
++
++    XSRETURN(1);
++}
++
++XS(XS_next_method)
++{
++    dMARK;
++    dAX;
++    SV* self = ST(0);
++    SV* methcv = __nextcan(self, 1);
++
++    PL_markstack_ptr++;
++    call_sv(methcv, GIMME_V);
++}
++
++XS(XS_maybe_next_method)
++{
++    dMARK;
++    dAX;
++    SV* self = ST(0);
++    SV* methcv = __nextcan(self, 0);
++
++    if(methcv == &PL_sv_undef) {
++        ST(0) = &PL_sv_undef;
++        XSRETURN(1);
++    }
++
++    PL_markstack_ptr++;
++    call_sv(methcv, GIMME_V);
++}
++
++/*
 + * Local variables:
 + * c-indentation-style: bsd
 + * c-basic-offset: 4
@@ -3162,8 +3866,17 @@
 + */
 === hv.c
 ==================================================================
---- hv.c	(/local/perl-current)	(revision 29701)
-+++ hv.c	(/local/perl-c3)	(revision 29701)
+--- hv.c	(/local/perl-current)	(revision 30412)
++++ hv.c	(/local/perl-c3-subg)	(revision 30412)
+@@ -1531,7 +1531,7 @@
+ 	return;
+     val = HeVAL(entry);
+     if (val && isGV(val) && GvCVu(val) && HvNAME_get(hv))
+-	PL_sub_generation++;	/* may be deletion of method from stash */
++        mro_method_changed_in(hv);	/* deletion of method from stash */
+     SvREFCNT_dec(val);
+     if (HeKLEN(entry) == HEf_SVKEY) {
+ 	SvREFCNT_dec(HeKEY_sv(entry));
 @@ -1726,6 +1726,7 @@
  
  	if (SvOOK(hv)) {
@@ -3172,13 +3885,15 @@
  	    struct xpvhv_aux *iter = HvAUX(hv);
  	    /* If there are weak references to this HV, we need to avoid
  	       freeing them up here.  In particular we need to keep the AV
-@@ -1757,6 +1758,13 @@
+@@ -1757,6 +1758,15 @@
  	    iter->xhv_riter = -1; 	/* HvRITER(hv) = -1 */
  	    iter->xhv_eiter = NULL;	/* HvEITER(hv) = NULL */
  
-+            if(meta = iter->xhv_mro_meta) {
++            if((meta = iter->xhv_mro_meta)) {
 +                if(meta->mro_linear_dfs) SvREFCNT_dec(meta->mro_linear_dfs);
 +                if(meta->mro_linear_c3)  SvREFCNT_dec(meta->mro_linear_c3);
++                if(meta->mro_isarev)     SvREFCNT_dec(meta->mro_isarev);
++                if(meta->mro_nextmethod) SvREFCNT_dec(meta->mro_nextmethod);
 +                Safefree(meta);
 +                iter->xhv_mro_meta = NULL;
 +            }
@@ -3186,7 +3901,7 @@
  	    /* There are now no allocated pointers in the aux structure.  */
  
  	    SvFLAGS(hv) &= ~SVf_OOK; /* Goodbye, aux structure.  */
-@@ -1878,6 +1886,7 @@
+@@ -1878,6 +1888,7 @@
      iter->xhv_eiter = NULL;	/* HvEITER(hv) = NULL */
      iter->xhv_name = 0;
      iter->xhv_backreferences = 0;
@@ -3196,9 +3911,9 @@
  
 === hv.h
 ==================================================================
---- hv.h	(/local/perl-current)	(revision 29701)
-+++ hv.h	(/local/perl-c3)	(revision 29701)
-@@ -38,12 +38,32 @@
+--- hv.h	(/local/perl-current)	(revision 30412)
++++ hv.h	(/local/perl-c3-subg)	(revision 30412)
+@@ -38,12 +38,38 @@
  
  /* Subject to change.
     Don't access this directly.
@@ -3213,9 +3928,15 @@
 +struct mro_meta {
 +    AV          *mro_linear_dfs; /* cached dfs @ISA linearization */
 +    AV          *mro_linear_c3; /* cached c3 @ISA linearization */
-+    U32         mro_linear_dfs_gen;    /* PL_isa_generation for above */
-+    U32         mro_linear_c3_gen;    /* PL_isa_generation for above */
++    HV		*mro_isarev;    /* reverse @ISA dependencies (who depends on us?) */
++    HV		*mro_nextmethod; /* next::method caching */
 +    mro_alg     mro_which;      /* which mro alg is in use? */
++    U32         sub_generation; /* Like PL_sub_generation, but stash-local */
++    I32         is_universal;   /* We are UNIVERSAL or a potentially indirect
++                                   member of @UNIVERSAL::ISA */
++    I32         fake;           /* setisa made this fake package,
++                                   gv_fetchmeth pays attention to this,
++                                   and "package" sets it back to zero */
 +};
 +
 +/* Subject to change.
@@ -3231,7 +3952,7 @@
  };
  
  /* hash structure: */
-@@ -240,6 +260,7 @@
+@@ -240,6 +266,7 @@
  #define HvRITER_get(hv)	(SvOOK(hv) ? HvAUX(hv)->xhv_riter : -1)
  #define HvEITER_get(hv)	(SvOOK(hv) ? HvAUX(hv)->xhv_eiter : 0)
  #define HvNAME(hv)	HvNAME_get(hv)
@@ -3241,46 +3962,156 @@
  /* This macro may go away without notice.  */
 === mg.c
 ==================================================================
---- mg.c	(/local/perl-current)	(revision 29701)
-+++ mg.c	(/local/perl-c3)	(revision 29701)
-@@ -1532,6 +1532,7 @@
+--- mg.c	(/local/perl-current)	(revision 30412)
++++ mg.c	(/local/perl-c3-subg)	(revision 30412)
+@@ -1530,8 +1530,18 @@
+ {
+     dVAR;
      PERL_UNUSED_ARG(sv);
-     PERL_UNUSED_ARG(mg);
-     PL_sub_generation++;
-+    PL_isa_generation++;
+-    PERL_UNUSED_ARG(mg);
+-    PL_sub_generation++;
++
++    /* The first case occurs via setisa,
++       the second via setisa_elem, which
++       calls this same magic */
++    mro_isa_changed_in(
++        GvSTASH(
++            SvTYPE(mg->mg_obj) == SVt_PVGV
++                ? (GV*)mg->mg_obj
++                : (GV*)SvMAGIC(mg->mg_obj)->mg_obj
++        )
++    );
++
      return 0;
  }
  
-=== intrpvar.h
-==================================================================
---- intrpvar.h	(/local/perl-current)	(revision 29701)
-+++ intrpvar.h	(/local/perl-c3)	(revision 29701)
-@@ -532,6 +532,8 @@
- PERLVARI(Islab_count, U32, 0)	/* Size of the array */
- #endif
+@@ -1541,7 +1551,6 @@
+     dVAR;
+     PERL_UNUSED_ARG(sv);
+     PERL_UNUSED_ARG(mg);
+-    /* HV_badAMAGIC_on(Sv_STASH(sv)); */
+     PL_amagic_generation++;
  
-+PERLVARI(Iisa_generation,U32,1)		/* incr to invalidate @ISA linearization cache */
+     return 0;
+=== op.c
+==================================================================
+--- op.c	(/local/perl-current)	(revision 30412)
++++ op.c	(/local/perl-c3-subg)	(revision 30412)
+@@ -3648,6 +3648,11 @@
+     save_item(PL_curstname);
+ 
+     PL_curstash = gv_stashsv(sv, GV_ADD);
 +
- /* New variables must be added to the very end, before this comment,
-  * for binary compatibility (the offsets of the old members must not change).
-  * (Don't forget to add your variable also to perl_clone()!)
++    /* In case mg.c:Perl_magic_setisa faked
++       this package earlier, we clear the fake flag */
++    HvMROMETA(PL_curstash)->fake = 0;
++
+     sv_setsv(PL_curstname, sv);
+ 
+     PL_hints |= HINT_BLOCK_SCOPE;
+@@ -5290,9 +5295,9 @@
+ 	    sv_setpvn((SV*)gv, ps, ps_len);
+ 	else
+ 	    sv_setiv((SV*)gv, -1);
++
+ 	SvREFCNT_dec(PL_compcv);
+ 	cv = PL_compcv = NULL;
+-	PL_sub_generation++;
+ 	goto done;
+     }
+ 
+@@ -5386,7 +5391,13 @@
+ 	    GvCV(gv) = NULL;
+ 	    cv = newCONSTSUB(NULL, name, const_sv);
+ 	}
+-	PL_sub_generation++;
++        mro_method_changed_in( /* sub Foo::Bar () { 123 } */
++            (CvGV(cv) && GvSTASH(CvGV(cv)))
++                ? GvSTASH(CvGV(cv))
++                : CvSTASH(cv)
++                    ? CvSTASH(cv)
++                    : PL_curstash
++        );
+ 	if (PL_madskills)
+ 	    goto install_block;
+ 	op_free(block);
+@@ -5456,7 +5467,7 @@
+ 	SvREFCNT_dec(PL_compcv);
+ 	PL_compcv = cv;
+ 	if (PERLDB_INTER)/* Advice debugger on the new sub. */
+-	  ++PL_sub_generation;
++	  ++PL_sub_generation; /* why? -- blblack */
+     }
+     else {
+ 	cv = PL_compcv;
+@@ -5469,7 +5480,7 @@
+ 		}
+ 	    }
+ 	    GvCVGEN(gv) = 0;
+-	    PL_sub_generation++;
++            mro_method_changed_in(GvSTASH(gv)); /* sub Foo::bar { (shift)+1 } */
+ 	}
+     }
+     CvGV(cv) = gv;
+@@ -5801,7 +5812,7 @@
+ 	if (name) {
+ 	    GvCV(gv) = cv;
+ 	    GvCVGEN(gv) = 0;
+-	    PL_sub_generation++;
++            mro_method_changed_in(GvSTASH(gv)); /* newXS */
+ 	}
+     }
+     CvGV(cv) = gv;
 === sv.c
 ==================================================================
---- sv.c	(/local/perl-current)	(revision 29701)
-+++ sv.c	(/local/perl-c3)	(revision 29701)
-@@ -11058,6 +11058,7 @@
-     PL_initav		= av_dup_inc(proto_perl->Iinitav, param);
+--- sv.c	(/local/perl-current)	(revision 30412)
++++ sv.c	(/local/perl-c3-subg)	(revision 30412)
+@@ -3245,7 +3245,7 @@
+ 		    SvREFCNT_dec(GvCV(dstr));
+ 		    GvCV(dstr) = NULL;
+ 		    GvCVGEN(dstr) = 0; /* Switch off cacheness. */
+-		    PL_sub_generation++;
++		    mro_method_changed_in(GvSTASH(dstr));
+ 		}
+ 	    }
+ 	    SAVEGENERICSV(*location);
+@@ -3291,7 +3291,7 @@
+ 	    }
+ 	    GvCVGEN(dstr) = 0; /* Switch off cacheness. */
+ 	    GvASSUMECV_on(dstr);
+-	    PL_sub_generation++;
++	    mro_method_changed_in(GvSTASH(dstr)); /* sub foo { 1 } sub bar { 2 } *bar = \&foo */
+ 	}
+ 	*location = sref;
+ 	if (import_flag && !(GvFLAGS(dstr) & import_flag)
+=== pp_hot.c
+==================================================================
+--- pp_hot.c	(/local/perl-current)	(revision 30412)
++++ pp_hot.c	(/local/perl-c3-subg)	(revision 30412)
+@@ -192,7 +192,7 @@
  
-     PL_sub_generation	= proto_perl->Isub_generation;
-+    PL_isa_generation	= proto_perl->Iisa_generation;
- 
-     /* funky return mechanisms */
-     PL_forkprocess	= proto_perl->Iforkprocess;
+ 	if (strEQ(GvNAME(right),"isa")) {
+ 	    GvCVGEN(right) = 0;
+-	    ++PL_sub_generation;
++	    ++PL_sub_generation; /* I don't get this at all --blblack */
+ 	}
+     }
+     SvSetMagicSV(right, left);
+@@ -3060,7 +3060,8 @@
+ 	if (he) {
+ 	    gv = (GV*)HeVAL(he);
+ 	    if (isGV(gv) && GvCV(gv) &&
+-		(!GvCVGEN(gv) || GvCVGEN(gv) == PL_sub_generation))
++		(!GvCVGEN(gv) || GvCVGEN(gv)
++                  == (PL_sub_generation + HvMROMETA(stash)->sub_generation)))
+ 		return (SV*)GvCV(gv);
+ 	}
+     }
 === embed.fnc
 ==================================================================
---- embed.fnc	(/local/perl-current)	(revision 29701)
-+++ embed.fnc	(/local/perl-c3)	(revision 29701)
-@@ -282,6 +282,10 @@
+--- embed.fnc	(/local/perl-current)	(revision 30412)
++++ embed.fnc	(/local/perl-c3-subg)	(revision 30412)
+@@ -282,6 +282,13 @@
  Ap	|GV*	|gv_fetchfile	|NN const char* name
  Ap	|GV*	|gv_fetchfile_flags|NN const char *const name|const STRLEN len\
  				|const U32 flags
@@ -3288,6 +4119,9 @@
 +ApM	|AV*	|mro_linear	|NN HV* stash
 +ApM	|AV*	|mro_linear_c3	|NN HV* stash|I32 level
 +ApM	|AV*	|mro_linear_dfs	|NN HV* stash|I32 level
++ApM     |void   |mro_isa_changed_in|NN HV* stash
++ApM	|void	|mro_method_changed_in	|NN HV* stash
++ApM     |void   |boot_core_mro
  Apd	|GV*	|gv_fetchmeth	|NULLOK HV* stash|NN const char* name|STRLEN len|I32 level
  Apd	|GV*	|gv_fetchmeth_autoload	|NULLOK HV* stash|NN const char* name|STRLEN len|I32 level
  Apdmb	|GV*	|gv_fetchmethod	|NULLOK HV* stash|NN const char* name
@@ -3295,5 +4129,7 @@
 Property changes on: 
 ___________________________________________________________________
 Name: svk:merge
- +bc823f99-e23a-42ae-8890-ba2193b93f74:/local/perl-current:29691
+ +bc823f99-e23a-42ae-8890-ba2193b93f74:/local/perl-c3:30402
+ +bc823f99-e23a-42ae-8890-ba2193b93f74:/local/perl-c3-isarev:29720
+ +bc823f99-e23a-42ae-8890-ba2193b93f74:/local/perl-current:30396
 
