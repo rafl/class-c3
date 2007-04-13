@@ -69,3 +69,36 @@ our $VERSION = '0.02';
 sub method { (next::method($_[0]) || return)->(@_) }
 
 1;
+
+__END__
+
+=pod
+
+=head1 NAME
+
+Class::C3::next - Pure-perl next::method and friends
+
+=head1 DESCRIPTION
+
+This module is used internally by L<Class::C3> when
+neccesary, and shouldn't be used (or required in
+distribution dependencies) directly.  It
+defines C<next::method>, C<next::can>, and
+C<maybe::next::method> in pure perl.
+
+=head1 AUTHOR
+
+Stevan Little, E<lt>stevan@iinteractive.comE<gt>
+
+Brandon L. Black, E<lt>blblack@gmail.comE<gt>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2005, 2006 by Infinity Interactive, Inc.
+
+L<http://www.iinteractive.com>
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself. 
+
+=cut

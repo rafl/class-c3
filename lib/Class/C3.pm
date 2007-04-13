@@ -6,15 +6,6 @@ use warnings;
 
 our $VERSION = '0.15_01';
 
-# Class::C3 defines Class::C3::* in pure perl
-# if mro, it does nothing else
-#   elsif Class::C3::XS, do nothing else
-#     else load next.pm
-# Class::C3::XS defines the same routines as next.pm,
-#  and also redefines (suppress warning) calculateMRO
-#  (ditto for anything else in Class::C3::* we want to
-#   XS-ize).
-
 our $C3_IN_CORE;
 
 BEGIN {

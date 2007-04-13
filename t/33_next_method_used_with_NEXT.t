@@ -38,7 +38,6 @@ BEGIN {
     package Baz;
     use strict;
     use warnings;    
-    use Class::C3;
     require NEXT; # load this as late as possible so we can catch the test skip
 
     use base 'Bar', 'Fuz';
