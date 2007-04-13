@@ -3,6 +3,7 @@ package  # hide me from PAUSE
 
 use strict;
 use warnings;
+no warnings 'redefine'; # for 00load.t w/ core support
 
 use Scalar::Util 'blessed';
 
@@ -63,6 +64,7 @@ package  # hide me from PAUSE
 
 use strict;
 use warnings;
+no warnings 'redefine'; # for 00load.t w/ core support
 
 our $VERSION = '0.02';
 

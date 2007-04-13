@@ -10,7 +10,7 @@ my $build = Module::Build->new(
         'Scalar::Util'    => 1.10,
     },
     recommends => {
-        'Class::C3::XS'   => 0.01,
+#        'Class::C3::XS'   => 0.01,
     },
     build_requires => {
         'Test::More' => '0.47',

@@ -1,7 +1,6 @@
 Revision history for Perl extension Class::C3.
 
-0.15_01 Not yet released
-    - Supports Class::C3::XS
+0.15_01 Fri, Apr 13, 2007
     - Supports bleadperl + c3 patches (experimental)
 
 0.14 Tues, Sep 19, 2006

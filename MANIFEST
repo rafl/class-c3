@@ -1,4 +1,5 @@
 Build.PL
+c3.patch
 ChangeLog
 lib/Class/C3.pm
 lib/Class/C3/next.pm

@@ -17,6 +17,19 @@ This module requires these other modules and libraries:
 	Algorithm::C3 0.06
 	Scalar::Util 1.10
 
+SPECIAL NOTE FOR 0.15_01
+
+To try this with the experimental perl core c3 patch,
+download a recent copy perl-current:
+
+http://mirrors.develooper.com/perl/APC/perl-current-snap/perl-current@30943.tar.bz2
+
+apply the enclosed c3.patch, and install this perl:
+
+sh Configure -Dusedevel -Dprefix=/where/I/want/it -d -e && make && make test && make install
+
+then try your C3-using software against this perl + Class::C3 0.15_01.
+
 COPYRIGHT AND LICENCE
 
 Copyright (C) 2005, 2006 Infinity Interactive, Inc.

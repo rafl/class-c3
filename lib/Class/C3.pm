@@ -12,12 +12,12 @@ BEGIN {
     eval "require mro"; # XXX in the future, this should be a version check
     if($@) {
         die $@ if $@ !~ /locate/;
-        eval "require Class::C3::XS";
-        if($@) {
-            die $@ if $@ !~ /locate/;
+#        eval "require Class::C3::XS";
+#        if($@) {
+#            die $@ if $@ !~ /locate/;
             eval "require Algorithm::C3; require Class::C3::next";
             die $@ if $@;
-        }
+#        }
     }
     else {
         $C3_IN_CORE = 1;
@@ -235,6 +235,19 @@ Class::C3 - A pragma to use the C3 method resolution order algortihm
     
     D->can('hello')->();          # can() also works correctly
     UNIVERSAL::can('D', 'hello'); # as does UNIVERSAL::can()
+
+=head1 SPECIAL NOTE FOR 0.15_01
+
+To try this with the experimental perl core c3 patch,
+download a recent copy perl-current:
+
+http://mirrors.develooper.com/perl/APC/perl-current-snap/perl-current@30943.tar.bz2
+
+apply the enclosed c3.patch, and install this perl:
+
+sh Configure -Dusedevel -Dprefix=/where/I/want/it -d -e && make && make test && make install
+
+then try your C3-using software against this perl + Class::C3 0.15_01.
 
 =head1 DESCRIPTION
 
