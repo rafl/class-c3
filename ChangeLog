@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::C3.
 
+    - Fix for overloading to method name string,
+       from Ittetsu Miyazaki.
+
 0.15_01 Fri, Apr 13, 2007
     - Supports bleadperl + c3 patches (experimental)
 

@@ -152,6 +152,10 @@ sub _apply_method_dispatch_table {
     ${"${class}::()"} = $MRO{$class}->{has_overload_fallback}
         if $MRO{$class}->{has_overload_fallback};
     foreach my $method (keys %{$MRO{$class}->{methods}}) {
+        if ( $method =~ /^\(/ ) {
+            my $orig = $MRO{$class}->{methods}->{$method}->{orig};
+            ${"${class}::$method"} = $$orig if defined $$orig;
+        }
         *{"${class}::$method"} = $MRO{$class}->{methods}->{$method}->{code};
     }    
 }
