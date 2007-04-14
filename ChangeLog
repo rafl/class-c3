@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::C3.
 
+    - Fix for overloading to method name string,
+       from Ittetsu Miyazaki.
+
 0.14 Tues, Sep 19, 2006
     - Fix for rt.cpan.org #21558
     - converted to Module::Build
