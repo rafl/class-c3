@@ -17,6 +17,11 @@ This module requires these other modules and libraries:
 	Algorithm::C3 0.06
 	Scalar::Util 1.10
 
+Additionally, this module will optionally take advantage of
+these if installed:
+
+	Class::C3::XS 0.01
+
 SPECIAL NOTE FOR 0.15_01
 
 To try this with the experimental perl core c3 patch,

@@ -7,17 +7,21 @@ use warnings;
 our $VERSION = '0.15_01';
 
 our $C3_IN_CORE;
+our $C3_XS;
 
 BEGIN {
     eval "require mro"; # XXX in the future, this should be a version check
     if($@) {
         die $@ if $@ !~ /locate/;
-#        eval "require Class::C3::XS";
-#        if($@) {
-#            die $@ if $@ !~ /locate/;
+        eval "require Class::C3::XS";
+        if($@) {
+            die $@ if $@ !~ /locate/;
             eval "require Algorithm::C3; require Class::C3::next";
             die $@ if $@;
-#        }
+        }
+        else {
+            $C3_XS = 1;
+        }
     }
     else {
         $C3_IN_CORE = 1;
@@ -182,12 +186,21 @@ sub _remove_method_dispatch_table {
 sub calculateMRO {
     my ($class, $merge_cache) = @_;
 
-    return @{mro::get_linear_isa($class)} if $C3_IN_CORE;
-
     return Algorithm::C3::merge($class, sub { 
         no strict 'refs'; 
         @{$_[0] . '::ISA'};
     }, $merge_cache);
+}
+
+sub _core_calculateMRO { @{mro::get_linear_isa($_[0])} }
+
+if($C3_IN_CORE) {
+    no warnings 'redefine';
+    *Class::C3::calculateMRO = \&_core_calculateMRO;
+}
+elsif($C3_XS) {
+    no warnings 'redefine';
+    *Class::C3::calculateMRO = \&Class::C3::XS::calculateMRO;
 }
 
 1;
@@ -470,6 +483,16 @@ manage to find a workaround for it, so until someone gives me a working patch th
 limitation of this module.
 
 =back
+
+=head1 COMPATIBILITY
+
+If your software requires Perl 5.9.5 or higher, you do not need L<Class::C3>, you can simple C<use mro 'c3'>, and not worry about C<initialize()>, avoid some of the above caveats, and get the best possible performance.  See L<mro> for more details.
+
+If your software is meant to work on earlier Perls, use L<Class::C3> as documented here.  L<Class::C3> will detect Perl 5.9.5+ and take advantage of the core support when available.
+
+=head1 Class::C3::XS
+
+This module will load L<Class::C3::XS> if it's installed and you are running on a Perl version older than 5.9.5.  Installing this is recommended when possible, as it results in significant performance improvements (but unlike the 5.9.5+ core support, it still has all of the same caveats as L<Class::C3>).
 
 =head1 CODE COVERAGE
 
