@@ -20,7 +20,7 @@ This module requires these other modules and libraries:
 Additionally, this module will optionally take advantage of
 these if installed:
 
-	Class::C3::XS 0.01
+	Class::C3::XS 0.01_01
 
 SPECIAL NOTE FOR 0.15_01
 
