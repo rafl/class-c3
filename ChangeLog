@@ -1,5 +1,11 @@
 Revision history for Perl extension Class::C3.
 
+    - Patch not included directly anymore
+
+0.15_03 Tue, Apr 17, 2007
+    - New c3.patch, improves threads compat and
+      mem mgmt.
+
 0.15_02 Sun, Apr 15, 2007
     - Fix for overloading to method name string,
        from Ittetsu Miyazaki.
