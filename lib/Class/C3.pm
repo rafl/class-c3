@@ -4,15 +4,13 @@ package Class::C3;
 use strict;
 use warnings;
 
-our $VERSION = '0.15_04';
+our $VERSION = '0.15_05';
 
 our $C3_IN_CORE;
 our $C3_XS;
 
 BEGIN {
-    eval "require mro"; # XXX in the future, this should be a version check
-    if($@) {
-        die $@ if $@ !~ /locate/;
+    if($^V < 5.009005) {
         eval "require Class::C3::XS";
         if($@) {
             die $@ if $@ !~ /locate/;
@@ -253,22 +251,16 @@ Class::C3 - A pragma to use the C3 method resolution order algortihm
     D->can('hello')->();          # can() also works correctly
     UNIVERSAL::can('D', 'hello'); # as does UNIVERSAL::can()
 
-=head1 SPECIAL NOTE FOR 0.15_04
+=head1 SPECIAL NOTE FOR 0.15_05
 
-To try this with the experimental perl core c3 patch,
+To try this with the new perl core c3 support,
 download the most recent copy perl-current:
 
 http://mirrors.develooper.com/perl/APC/perl-current-snap/
 
-Apply the latest C3 patch from:
-
-http://www.dtmf.com/c3-subgen.patch
-
-Then:
-
 sh Configure -Dusedevel -Dprefix=/where/I/want/it -d -e && make && make test && make install
 
-then try your C3-using software against this perl + Class::C3 0.15_04.
+then try your C3-using software against this perl + Class::C3 0.15_05.
 
 =head1 DESCRIPTION
 

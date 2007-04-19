@@ -22,22 +22,16 @@ these if installed:
 
 	Class::C3::XS 0.01_06
 
-SPECIAL NOTE FOR 0.15_04
+SPECIAL NOTE FOR 0.15_05
 
-To try this with the experimental perl core c3 patch,
+To try this with the new perl core c3 support,
 download the most recent copy perl-current:
 
 http://mirrors.develooper.com/perl/APC/perl-current-snap/
 
-Apply the latest C3 patch from:
-
-http://www.dtmf.com/c3-subgen.patch
-
-Then:
-
 sh Configure -Dusedevel -Dprefix=/where/I/want/it -d -e && make && make test && make install
 
-then try your C3-using software against this perl + Class::C3 0.15_04.
+then try your C3-using software against this perl + Class::C3 0.15_05.
 
 COPYRIGHT AND LICENCE
 
