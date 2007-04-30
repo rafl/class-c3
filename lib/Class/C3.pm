@@ -82,7 +82,7 @@ sub _calculate_method_dispatch_table {
     no strict 'refs';
     my @MRO = calculateMRO($class, $merge_cache);
     $MRO{$class} = { MRO => \@MRO };
-    my $has_overload_fallback = 0;
+    my $has_overload_fallback;
     my %methods;
     # NOTE: 
     # we do @MRO[1 .. $#MRO] here because it
@@ -93,7 +93,7 @@ sub _calculate_method_dispatch_table {
         # have use "fallback", then we want to
         # grab that value 
         $has_overload_fallback = ${"${local}::()"} 
-            if defined ${"${local}::()"};
+            if !defined $has_overload_fallback && defined ${"${local}::()"};
         foreach my $method (grep { defined &{"${local}::$_"} } keys %{"${local}::"}) {
             # skip if already overriden in local class
             next unless !defined *{"${class}::$method"}{CODE};
@@ -118,7 +118,8 @@ sub _apply_method_dispatch_table {
     my $class = shift;
     no strict 'refs';
     ${"${class}::()"} = $MRO{$class}->{has_overload_fallback}
-        if $MRO{$class}->{has_overload_fallback};
+        if !defined &{"${class}::()"}
+           && defined $MRO{$class}->{has_overload_fallback};
     foreach my $method (keys %{$MRO{$class}->{methods}}) {
         if ( $method =~ /^\(/ ) {
             my $orig = $MRO{$class}->{methods}->{$method}->{orig};
