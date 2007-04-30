@@ -1,5 +1,7 @@
 Revision history for Perl extension Class::C3.
 
+    - Fixed overload fallback edge cases.
+
 0.15_05 Thurs, Apr 19, 2007
     - Patch is in the latest perl-current now,
       and this dev release assumes 5.9.5 has the patch
