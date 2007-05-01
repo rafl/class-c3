@@ -12,10 +12,10 @@ our $C3_XS;
 BEGIN {
     if($^V < 5.009005) {
         eval "require Class::C3::XS";
-        if($@) {
-            die $@ if $@ !~ /locate/;
-            eval "require Algorithm::C3; require Class::C3::next";
-            die $@ if $@;
+        if(my $error = $@) {
+            die $error if $error !~ /\blocate\b/;
+            require Algorithm::C3;
+            require Class::C3::next;
         }
         else {
             $C3_XS = 1;
@@ -167,7 +167,7 @@ sub _remove_method_dispatch_tables {
     return if $C3_IN_CORE;
     foreach my $class (keys %MRO) {
         _remove_method_dispatch_table($class);
-    }       
+    }
 }
 
 sub _remove_method_dispatch_table {
@@ -179,7 +179,7 @@ sub _remove_method_dispatch_table {
         delete ${"${class}::"}{$method}
             if defined *{"${class}::${method}"}{CODE} && 
                (*{"${class}::${method}"}{CODE} eq $MRO{$class}->{methods}->{$method}->{code});       
-    }   
+    }
 }
 
 sub calculateMRO {
@@ -200,6 +200,8 @@ if($C3_IN_CORE) {
 elsif($C3_XS) {
     no warnings 'redefine';
     *Class::C3::calculateMRO = \&Class::C3::XS::calculateMRO;
+    *Class::C3::_calculate_method_dispatch_table
+        = \&Class::C3::XS::_calculate_method_dispatch_table;
 }
 
 1;
