@@ -1,5 +1,10 @@
 Revision history for Perl extension Class::C3.
 
+0.15_06
+    - Converted to Module::Install
+    - No deps w/ 5.9.5+
+    - Cleaned up the BEGIN stuff a bit
+    - Added support for C::C3::XS 0.01_07
     - Fixed overload fallback edge cases.
 
 0.15_05 Thurs, Apr 19, 2007
