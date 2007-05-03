@@ -1,27 +1,12 @@
 Revision history for Perl extension Class::C3.
 
-0.15_06
+0.16 Thurs, May 3, 2007
     - Converted to Module::Install
-    - No deps w/ 5.9.5+
-    - Cleaned up the BEGIN stuff a bit
-    - Added support for C::C3::XS 0.01_07
+    - Supports optional Class::C3::XS
+    - Supports optional perl 5.9.5+ mro code
     - Fixed overload fallback edge cases.
-
-0.15_05 Thurs, Apr 19, 2007
-    - Patch is in the latest perl-current now,
-      and this dev release assumes 5.9.5 has the patch
-
-0.15_03 Tue, Apr 17, 2007
-    - New c3.patch, improves threads compat and
-      mem mgmt.
-
-0.15_02 Sun, Apr 15, 2007
     - Fix for overloading to method name string,
        from Ittetsu Miyazaki.
-    - Supports Class::C3::XS
-
-0.15_01 Fri, Apr 13, 2007
-    - Supports bleadperl + c3 patches (experimental)
 
 0.14 Tues, Sep 19, 2006
     - Fix for rt.cpan.org #21558

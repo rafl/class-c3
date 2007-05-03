@@ -4,7 +4,7 @@ package Class::C3;
 use strict;
 use warnings;
 
-our $VERSION = '0.15_06';
+our $VERSION = '0.16';
 
 our $C3_IN_CORE;
 our $C3_XS;
@@ -194,7 +194,7 @@ sub calculateMRO {
 
 # Method overrides to support 5.9.5+ or Class::C3::XS
 
-sub _core_calculateMRO { @{mro::get_linear_isa($_[0])} }
+sub _core_calculateMRO { @{mro::get_linear_isa($_[0], 'c3')} }
 
 if($C3_IN_CORE) {
     no warnings 'redefine';
@@ -256,17 +256,6 @@ Class::C3 - A pragma to use the C3 method resolution order algortihm
     
     D->can('hello')->();          # can() also works correctly
     UNIVERSAL::can('D', 'hello'); # as does UNIVERSAL::can()
-
-=head1 SPECIAL NOTE FOR 0.15_06
-
-To try this with the new perl core c3 support,
-download the most recent copy perl-current:
-
-http://mirrors.develooper.com/perl/APC/perl-current-snap/
-
-sh Configure -Dusedevel -Dprefix=/where/I/want/it -d -e && make && make test && make install
-
-then try your C3-using software against this perl + Class::C3 0.15_06.
 
 =head1 DESCRIPTION
 
@@ -498,16 +487,7 @@ This module will load L<Class::C3::XS> if it's installed and you are running on 
 
 =head1 CODE COVERAGE
 
-I use B<Devel::Cover> to test the code coverage of my tests, below is the B<Devel::Cover> report on this 
-module's test suite.
-
- ---------------------------- ------ ------ ------ ------ ------ ------ ------
- File                           stmt   bran   cond    sub    pod   time  total
- ---------------------------- ------ ------ ------ ------ ------ ------ ------
- Class/C3.pm                    98.3   84.4   80.0   96.2  100.0   98.4   94.4
- ---------------------------- ------ ------ ------ ------ ------ ------ ------
- Total                          98.3   84.4   80.0   96.2  100.0   98.4   94.4
- ---------------------------- ------ ------ ------ ------ ------ ------ ------
+L<Devel::Cover> was reporting 94.4% overall test coverage earlier in this module's life.  Currently, the test suite does things that break under coverage testing, but it is fair to assume the coverage is still close to that value.
 
 =head1 SEE ALSO
 

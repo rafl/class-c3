@@ -1,4 +1,4 @@
-Class::C3 version 0.15_06
+Class::C3 version 0.16
 ===========================
 
 INSTALLATION
@@ -20,18 +20,8 @@ This module requires these other modules and libraries:
 Additionally, this module will optionally take advantage of
 these if installed:
 
-	Class::C3::XS 0.01_07
-
-SPECIAL NOTE FOR 0.15_06
-
-To try this with the new perl core c3 support,
-download the most recent copy perl-current:
-
-http://mirrors.develooper.com/perl/APC/perl-current-snap/
-
-sh Configure -Dusedevel -Dprefix=/where/I/want/it -d -e && make && make test && make install
-
-then try your C3-using software against this perl + Class::C3 0.15_06.
+        perl 5.9.5
+        Class::C3::XS 0.02
 
 COPYRIGHT AND LICENCE
 
