@@ -16,3 +16,5 @@ cover_db
 \.old$
 ^#.*#$
 ^\.#
+\.gz$
+DEV_README
