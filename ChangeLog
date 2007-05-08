@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::C3.
 
+0.17 Tues, May 8, 2007
+    - Remove Build.PL from the distribution
+
 0.16 Thurs, May 3, 2007
     - Converted to Module::Install
     - Supports optional Class::C3::XS
