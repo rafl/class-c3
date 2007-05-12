@@ -1,4 +1,4 @@
-Class::C3 version 0.17
+Class::C3 version 0.18
 ===========================
 
 INSTALLATION
@@ -21,7 +21,7 @@ Additionally, this module will optionally take advantage of
 these if installed:
 
         perl 5.9.5
-        Class::C3::XS 0.03
+        Class::C3::XS 0.04
 
 COPYRIGHT AND LICENCE
 

@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::C3.
 
+0.18 Sat, May 12, 2007
+    - Just bumped XS version requirement
+
 0.17 Tues, May 8, 2007
     - Remove Build.PL from the distribution
 

@@ -7,7 +7,7 @@ all_from       'lib/Class/C3.pm';
 if($] < 5.009_005) {
     build_requires 'Test::More'    => '0.47';
 
-    feature 'XS Speedups', 'Class::C3::XS' => '0.03';
+    feature 'XS Speedups', 'Class::C3::XS' => '0.04';
 
     # Would like to disable these if they answer yes above too ...
     requires 'Algorithm::C3' => '0.06';
