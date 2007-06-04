@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::C3.
 
+0.19 Mon, Jun 4, 2007
+    - Added new goto tests, bumped XS version req
+
 0.18 Sat, May 12, 2007
     - Just bumped XS version requirement
 

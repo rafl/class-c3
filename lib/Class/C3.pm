@@ -4,7 +4,7 @@ package Class::C3;
 use strict;
 use warnings;
 
-our $VERSION = '0.18';
+our $VERSION = '0.19';
 
 our $C3_IN_CORE;
 our $C3_XS;
@@ -12,6 +12,7 @@ our $C3_XS;
 BEGIN {
     if($] > 5.009_004) {
         $C3_IN_CORE = 1;
+        require mro;
     }
     else {
         eval "require Class::C3::XS";
