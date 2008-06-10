@@ -67,6 +67,11 @@ sub import {
 
 ## initializers
 
+# This prevents silly warnings when Class::C3 is
+#  used explicitly along with MRO::Compat under 5.9.5+
+
+{ no warnings 'redefine';
+
 sub initialize {
     %next::METHOD_CACHE = ();
     # why bother if we don't have anything ...
@@ -99,6 +104,8 @@ sub uninitialize {
 }
 
 sub reinitialize { goto &initialize }
+
+} # end of "no warnings 'redefine'"
 
 ## functions for applying C3 to classes
 

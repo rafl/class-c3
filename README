@@ -28,16 +28,16 @@ SYNOPSIS
         #    <D>
 
         package main;
-    
-        # initializez the C3 module 
+        
+    # initializez the C3 module 
         # (formerly called in INIT)
         Class::C3::initialize();  
 
         print join ', ' => Class::C3::calculateMRO('Diamond_D') # prints D, B, C, A
 
         print D->hello() # prints 'C::hello' instead of the standard p5 'A::hello'
-    
-        D->can('hello')->();          # can() also works correctly
+        
+    D->can('hello')->();          # can() also works correctly
         UNIVERSAL::can('D', 'hello'); # as does UNIVERSAL::can()
 
 DESCRIPTION
@@ -95,12 +95,12 @@ OPTIONAL LOWERCASE PRAGMA
 
       package MyClass;
       use c3;
-  
+
     The the more clunky:
 
       package MyClass;
       use Class::C3;
-  
+
     But hey, it's your choice, thats why it is optional.
 
 FUNCTIONS
@@ -117,15 +117,15 @@ FUNCTIONS
           package Foo;
           use Class::C3;
           # ... Foo methods here
-  
-          package Bar;
+          
+  package Bar;
           use Class::C3;
           use base 'Foo';
           # ... Bar methods here
-  
-          package main;
-  
-          Class::C3::initialize(); # now it is safe to use Foo and Bar
+          
+  package main;
+          
+  Class::C3::initialize(); # now it is safe to use Foo and Bar
 
         This function used to be called automatically for you in the INIT
         phase of the perl compiler, but that lead to warnings if this module
@@ -161,27 +161,27 @@ METHOD REDISPATCHING
       <B>   <C>
         \   /
          <D>
-  
-      package A;
+      
+  package A;
       use c3; 
       sub foo { 'A::foo' }       
- 
-      package B;
+     
+  package B;
       use base 'A'; 
       use c3;     
       sub foo { 'B::foo => ' . (shift)->next::method() }       
- 
-      package B;
+     
+  package B;
       use base 'A'; 
       use c3;    
       sub foo { 'C::foo => ' . (shift)->next::method() }   
- 
-      package D;
+     
+  package D;
       use base ('B', 'C'); 
       use c3; 
       sub foo { 'D::foo => ' . (shift)->next::method() }   
-  
-      print D->foo; # prints out "D::foo => B::foo => C::foo => A::foo"
+      
+  print D->foo; # prints out "D::foo => B::foo => C::foo => A::foo"
 
     A few things to note. First, we do not require you to add on the method
     name to the "next::method" call (this is unlike "NEXT::" and "SUPER::"
@@ -196,7 +196,7 @@ METHOD REDISPATCHING
     it will throw an exception. You can use "next::can" to see if
     "next::method" will succeed before you call it like so:
 
-      $self->next::method(@_) if $self->next::can; 
+      $self->next::method(@_) if $self->next::can;
 
     Additionally, you can use "maybe::next::method" as a shortcut to only
     call the next method if it exists. The previous example could be simply
