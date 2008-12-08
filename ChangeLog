@@ -1,5 +1,9 @@
 Revision history for Perl extension Class::C3.
 
+0.20 Mon, Dec 8, 2008
+    - Prevent redefined warnings when Class::C3 is loaded explicitly after
+      MRO::Compat has been loaded. Also add tests for this.
+
 0.19 Mon, Jun 4, 2007
     - Added new goto tests, bumped XS version req
 
