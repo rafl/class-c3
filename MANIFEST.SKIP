@@ -19,3 +19,4 @@ cover_db
 \.gz$
 DEV_README
 Build.PL
+^\.
