@@ -1,5 +1,6 @@
 Revision history for Perl extension Class::C3.
 
+0.22 Fri, Jan 29, 2010
     - Add note that people should be using MRO::Compat rather than
       Class::C3 directly.
 
