@@ -227,6 +227,7 @@ Class::C3 - A pragma to use the C3 method resolution order algortihm
 
 =head1 SYNOPSIS
 
+    # NOTE - DO NOT USE Class::C3 directly as a user, use MRO::Compat instead!
     package A;
     use Class::C3;
     sub hello { 'A::hello' }
@@ -269,6 +270,11 @@ Class::C3 - A pragma to use the C3 method resolution order algortihm
 
 This is pragma to change Perl 5's standard method resolution order from depth-first left-to-right
 (a.k.a - pre-order) to the more sophisticated C3 method resolution order.
+
+B<NOTE:> YOU SHOULD NOT USE THIS MODULE DIRECTLY - The feature provided
+is integrated into perl version >= 5.9.5, and you should use L<MRO::Compat>
+instead, which will use the core implementation in newer perls, but fallback
+to using this implementation on older perls.
 
 =head2 What is C3?
 
