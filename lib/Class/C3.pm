@@ -279,7 +279,7 @@ to using this implementation on older perls.
 =head2 What is C3?
 
 C3 is the name of an algorithm which aims to provide a sane method resolution order under multiple
-inheritence. It was first introduced in the langauge Dylan (see links in the L<SEE ALSO> section),
+inheritance. It was first introduced in the langauge Dylan (see links in the L<SEE ALSO> section),
 and then later adopted as the prefered MRO (Method Resolution Order) for the new-style classes in
 Python 2.3. Most recently it has been adopted as the 'canonical' MRO for Perl 6 classes, and the
 default MRO for Parrot objects as well.
@@ -287,7 +287,7 @@ default MRO for Parrot objects as well.
 =head2 How does C3 work.
 
 C3 works by always preserving local precendence ordering. This essentially means that no class will
-appear before any of it's subclasses. Take the classic diamond inheritence pattern for instance:
+appear before any of its subclasses. Take the classic diamond inheritance pattern for instance:
 
      <A>
     /   \
@@ -384,14 +384,14 @@ This is an alias for L</initialize> above.
 
 It is always useful to be able to re-dispatch your method call to the "next most applicable method". This
 module provides a pseudo package along the lines of C<SUPER::> or C<NEXT::> which will re-dispatch the
-method along the C3 linearization. This is best show with an examples.
+method along the C3 linearization. This is best shown with an example.
 
   # a classic diamond MI pattern ...
-     <A>
-    /   \
-  <B>   <C>
-    \   /
-     <D>
+  #    <A>
+  #   /   \
+  # <B>   <C>
+  #   \   /
+  #    <D>
 
   package A;
   use c3;
@@ -402,7 +402,7 @@ method along the C3 linearization. This is best show with an examples.
   use c3;
   sub foo { 'B::foo => ' . (shift)->next::method() }
 
-  package B;
+  package C;
   use base 'A';
   use c3;
   sub foo { 'C::foo => ' . (shift)->next::method() }
@@ -418,7 +418,7 @@ A few things to note. First, we do not require you to add on the method name to 
 call (this is unlike C<NEXT::> and C<SUPER::> which do require that). This helps to enforce the rule
 that you cannot dispatch to a method of a different name (this is how C<NEXT::> behaves as well).
 
-The next thing to keep in mind is that you will need to pass all arguments to C<next::method> it can
+The next thing to keep in mind is that you will need to pass all arguments to C<next::method>.  It can
 not automatically use the current C<@_>.
 
 If C<next::method> cannot find a next method to re-dispatch the call to, it will throw an exception.
@@ -445,22 +445,22 @@ But there are still caveats, so here goes ...
 
 =item Use of C<SUPER::>.
 
-The idea of C<SUPER::> under multiple inheritence is ambigious, and generally not recomended anyway.
-However, it's use in conjuntion with this module is very much not recommended, and in fact very
+The idea of C<SUPER::> under multiple inheritance is ambigious, and generally not recomended anyway.
+However, its use in conjuntion with this module is very much not recommended, and in fact very
 discouraged. The recommended approach is to instead use the supplied C<next::method> feature, see
-more details on it's usage above.
+more details on its usage above.
 
 =item Changing C<@ISA>.
 
 It is the author's opinion that changing C<@ISA> at runtime is pure insanity anyway. However, people
 do it, so I must caveat. Any changes to the C<@ISA> will not be reflected in the MRO calculated by this
-module, and therefor probably won't even show up. If you do this, you will need to call C<reinitialize>
+module, and therefore probably won't even show up. If you do this, you will need to call C<reinitialize>
 in order to recalulate B<all> method dispatch tables. See the C<reinitialize> documentation and an example
 in F<t/20_reinitialize.t> for more information.
 
 =item Adding/deleting methods from class symbol tables.
 
-This module calculates the MRO for each requested class by interogatting the symbol tables of said classes.
+This module calculates the MRO for each requested class by interogating the symbol tables of said classes.
 So any symbol table manipulation which takes place after our INIT phase is run will not be reflected in
 the calculated MRO. Just as with changing the C<@ISA>, you will need to call C<reinitialize> for any
 changes you make to take effect.
