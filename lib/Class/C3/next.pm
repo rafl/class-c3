@@ -7,7 +7,7 @@ no warnings 'redefine'; # for 00load.t w/ core support
 
 use Scalar::Util 'blessed';
 
-our $VERSION = '0.06';
+our $VERSION = '0.23';
 
 our %METHOD_CACHE;
 
