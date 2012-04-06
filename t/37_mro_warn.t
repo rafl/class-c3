@@ -23,7 +23,7 @@ BEGIN
 
     # Remove symbols from respective tables, and
     # remove from INC, so we force re-evaluation
-    foreach my $class qw(Class::C3 MRO::Compat) {
+    foreach my $class (qw(Class::C3 MRO::Compat)) {
         my $file = $class;
         $file =~ s/::/\//g;
         $file .= '.pm';

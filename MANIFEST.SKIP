@@ -4,6 +4,7 @@
 ~$
 \.bak$
 ^MANIFEST\.SKIP$
+^MYMETA\.
 CVS
 \.svn
 \.DS_Store

@@ -1,5 +1,7 @@
 Revision history for Perl extension Class::C3.
 
+    - Require Class::C3::XS on 5.8 perls if a working compiler is found
+
 0.23 Sat, Jun 19, 2010
     - Fix various documentation problems (Martin Becker).
 

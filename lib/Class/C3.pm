@@ -14,16 +14,26 @@ BEGIN {
         $C3_IN_CORE = 1;
         require mro;
     }
-    else {
-        eval "require Class::C3::XS";
-        my $error = $@;
-        if(!$error) {
-            $C3_XS = 1;
-        }
-        else {
+    elsif($C3_XS or not defined $C3_XS) {
+        my $error = do {
+            local $@;
+            eval { require Class::C3::XS };
+            $@;
+        };
+
+        if ($error) {
             die $error if $error !~ /\blocate\b/;
+
+            if ($C3_XS) {
+                require Carp;
+                Carp::croak( "XS explicitly requested but Class::C3::XS is not available" );
+            }
+
             require Algorithm::C3;
             require Class::C3::next;
+        }
+        else {
+            $C3_XS = 1;
         }
     }
 }
@@ -497,7 +507,7 @@ If your software is meant to work on earlier Perls, use L<Class::C3> as document
 
 =head1 Class::C3::XS
 
-This module will load L<Class::C3::XS> if it's installed and you are running on a Perl version older than 5.9.5.  Installing this is recommended when possible, as it results in significant performance improvements (but unlike the 5.9.5+ core support, it still has all of the same caveats as L<Class::C3>).
+This module will load L<Class::C3::XS> if it's installed and you are running on a Perl version older than 5.9.5.  The optional module will be automatically installed for you if a C compiler is available, as it results in significant performance improvements (but unlike the 5.9.5+ core support, it still has all of the same caveats as L<Class::C3>).
 
 =head1 CODE COVERAGE
 

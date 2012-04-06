@@ -1,2 +1,0 @@
-
-Please package this dist using Perl < 5.9.5, so that the deps show up in META.yml
